@@ -94,9 +94,11 @@ function tilesHtml(items){
   return out.join('')||'<div class="empty">No items match.</div>';
 }
 /* barcode helpers: "3*barcode" multiplies; EAN-13 starting with 2 carries a weight (2 + 5-digit PLU + 5-digit grams + check) */
+/* EAN-13 check digit for the first 12 digits */
+function ean13Check(d12){let s=0;for(let i=0;i<12;i++)s+=(+d12[i])*(i%2?3:1);return (10-(s%10))%10}
 function parseScan(raw){
   let q=String(raw).trim(), mult=1; const m=q.match(/^(\d{1,3})\s*[*xX]\s*(.+)$/); if(m){mult=+m[1];q=m[2].trim()}
-  if(/^2\d{12}$/.test(q)&&bm('weighed')){const plu=q.slice(1,6), it=DB.items.find(i=>i.active&&i.weighed&&String(i.plu)===plu);if(it)return {item:it,qty:rq(parseInt(q.slice(6,11),10)/1000),weight:true}}
+  if(/^2\d{12}$/.test(q)&&bm('weighed')&&ean13Check(q.slice(0,12))===+q[12]){const plu=q.slice(1,7), it=DB.items.find(i=>i.active&&i.weighed&&String(i.plu).padStart(6,'0')===plu);if(it)return {item:it,qty:rq(parseInt(q.slice(7,12),10)/1000),weight:true}}
   const it=DB.items.find(i=>i.active&&(i.barcode===q||i.sku.toLowerCase()===q.toLowerCase()||(i.plu&&i.plu===q)));
   return it?{item:it,qty:mult,weight:false}:null;
 }
@@ -166,3 +168,41 @@ A['provider-edit']=d=>{
     actions:[{label:tr('Cancel')},{label:tr('Save'),cls:'primary',fn:el=>{const f=formData(el);if(!f.name.trim()){toast('Name required','err');return false}
       const rec={name:f.name.trim(),dept:f.dept.trim(),commissionPct:Math.min(100,Math.max(0,num(f.pct))),active:!!f.active};if(p)Object.assign(p,rec);else DB.providers.push(Object.assign({id:uid('pv')},rec));save();render()}}]});
 };
+
+/* ---------- forms: fields that depend on the business type ---------- */
+function itemExtraFields(it){
+  let h='';
+  if(bm('weighed'))h+=field('Unit (pcs / kg / l)','unit',it.unit||'pcs',{max:6})+field('PLU / scale code','plu',it.plu||'',{max:12});
+  if(bm('variants'))h+=field('Group (e.g. T-Shirt)','group',it.group||'',{max:60})+field('Variant (size / colour)','variant',it.variant||'',{max:30});
+  if(bm('provider'))h+=select('Type','kind',[['product','Product'],['service','Service']],it.kind||'product');
+  return h;
+}
+function itemExtraChecks(it){
+  return (bm('weighed')?check('Sold by weight','weighed',it.weighed):'')+(bm('rx')?check('Prescription only (Rx)','rx',it.rx)+check('Controlled medicine','controlled',it.controlled):'');
+}
+function itemExtra(d){
+  const o={}; ['unit','plu','group','variant','kind'].forEach(k=>{if(d[k]!==undefined)o[k]=String(d[k]).trim()}); ['weighed','rx','controlled'].forEach(k=>{if(k in d)o[k]=!!d[k]});
+  if(o.kind==='service'){o.track=false}
+  return o;
+}
+function guestExtraFields(c){
+  c=c||{}; if(!bm('insurance'))return '';
+  return field('Patient file / MRN no.','mrn',c.mrn||'',{max:30})+field('Insurer','insurer',c.insurer||'',{max:60})+field('Policy / member no.','policy',c.policy||'',{max:40})+field('Patient co-pay %','copay',c.copay!=null?c.copay:0,{type:'number',min:0,max:100,step:'1'});
+}
+function guestExtra(f){
+  const o={}; ['mrn','insurer','policy'].forEach(k=>{if(f[k]!==undefined)o[k]=String(f[k]).trim()}); if(f.copay!==undefined)o.copay=Math.min(100,Math.max(0,num(f.copay))); return o;
+}
+function roleOptions(u){
+  const list=rolesForType().slice(); if(u&&list.indexOf(u.role)<0)list.push(u.role);
+  return list.map(r=>[r,roleLabel(r)]);
+}
+function reportTabs(){
+  return REPORTS.concat(bm('rx')?[['rx','Prescription register']]:[],bm('provider')?[['provider','Provider earnings']]:[]);
+}
+function vTeam(){return vTeamBase()+(bm('provider')?vProviders():'')}
+function bizSettingsHtml(){
+  const cur=bizType();
+  return '<h2>Business type</h2><p class="muted sm">Current: <b>'+esc(biz().name)+'</b> — '+esc(biz().desc)+'. The type decides which screens, staff roles and dashboard you get.</p><div class="bizgrid">'+
+    Object.keys(BIZ).map(k=>'<div class="bizcard'+(k===cur?' on':'')+'"><div class="bi">'+BIZ[k].icon+'</div><b>'+esc(BIZ[k].name)+'</b><span class="muted sm">'+esc(BIZ[k].desc)+'</span>'+(k===cur?'<span class="badge ok">Current</span>':'<button type="button" class="btn ghost sm" data-act="biz-switch" data-id="'+k+'">Load this type</button>')+'</div>').join('')+'</div>';
+}
+function applyBizDefaults(type){const p=BIZ[type]||BIZ.restaurant;DB.settings.businessType=type;DB.settings.minMarginPct=p.minMargin;DB.settings.blockExpired=p.blockExpired}

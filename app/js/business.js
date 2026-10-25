@@ -130,3 +130,13 @@ A['biz-switch']=d=>{
   const t=d.id; if(!BIZ[t])return;
   confirmBox('Switch to "'+BIZ[t].name+'" and load its sample catalogue? This REPLACES items, stock, customers, orders and accounting with fresh sample data (your logins and country/tax settings are kept). Download a backup first if you need the current data.',()=>{switchBusinessType(t);UIS.dr='today';toast(BIZ[t].name+' sample loaded');location.hash='#/dashboard';render()},'Switch & replace');
 };
+
+/* extra daily-briefing lines that only make sense for one industry */
+function bizBriefing(){
+  const out=[], t=bizType(), b=typeof expiryBuckets==='function'?expiryBuckets():null;
+  if(bm('expiry')&&b&&b.expired.n>0)out.push({k:'bad',t:rq(b.expired.n)+' unit(s) of expired stock ('+money(b.expired.v)+') are still on the shelf. They are blocked from sale — remove and write them off. <a href="#/stock/lots">View lots</a>.',html:true});
+  if(t==='pharmacy'){const today=dayKey(now()),ctl=DB.rxLog.filter(r=>r.controlled&&dayKey(r.ts)===today).length;if(ctl)out.push({k:'info',t:ctl+' controlled-medicine dispensing(s) today. <a href="#/reports/rx">Check the prescription register</a>.',html:true})}
+  if(bm('insurance')&&typeof claimsOutstanding==='function'){const c=claimsOutstanding();if(c>0)out.push({k:'info',t:'Insurance claims outstanding: '+money(c)+'. <a href="#/accounts/outstanding">Record settlements</a>.',html:true})}
+  if(t==='supermarket'){const dead=DB.items.filter(i=>i.active&&i.track&&stockOf(i.id)>0&&!DB.orders.some(o=>o.ts>now()-30*864e5&&o.status==='completed'&&o.lines.some(l=>l.itemId===i.id)));if(dead.length&&DB.orders.length>20)out.push({k:'warn',t:dead.length+' product(s) have not sold in 30 days and are tying up stock — consider a promotion.'})}
+  return out;
+}

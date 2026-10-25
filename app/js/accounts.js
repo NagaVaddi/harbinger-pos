@@ -15,7 +15,7 @@ const ACC_LEDGERS=[ // key, name, group, system
   ['cash','Cash-in-Hand','g_cash',1],['bank','Main Bank Account','g_bank',1],['card','Card Collections (in transit)','g_dep',1],['wallet','Wallet / QR Collections','g_dep',1],
   ['suspense','Cash Paid Out (to classify)','g_dep',1],['stock','Stock-in-Hand','g_stock',1],['vat_out','VAT Output','g_duty',1],['vat_in','VAT Input','g_duty',1],
   ['grn','GRN Clearing (unbilled receipts)','g_cl',1],['capital',"Owner's Capital",'g_cap',1],['sales','Sales','g_sales',1],['purchases','Purchases','g_pur',1],
-  ['cogs','Cost of Goods Sold','g_dexp',1],['disc','Discount Allowed','g_iexp',1],['shortover','Cash Over / Short','g_iexp',1],['cod','COD / Pay-at-counter Receivable','g_dep',1],['aggr','Aggregator Receivables','g_debt',1],['commission','Aggregator Commission','g_iexp',1],['svc','Service Charge Income','g_iinc',1],['govfee','Government Fees Payable (municipality etc.)','g_duty',1],['wastage','Stock Wastage & Adjustments','g_iexp',1],
+  ['cogs','Cost of Goods Sold','g_dexp',1],['disc','Discount Allowed','g_iexp',1],['shortover','Cash Over / Short','g_iexp',1],['cod','COD / Pay-at-counter Receivable','g_dep',1],['aggr','Aggregator Receivables','g_debt',1],['commission','Aggregator Commission','g_iexp',1],['svc','Service Charge Income','g_iinc',1],['stockdiff','Stock Valuation Differences','g_iexp',1],['insrej','Insurance Claim Rejections','g_iexp',1],['govfee','Government Fees Payable (municipality etc.)','g_duty',1],['wastage','Stock Wastage & Adjustments','g_iexp',1],
   [null,'Rent','g_iexp',0],[null,'Salaries & Wages','g_iexp',0],[null,'Utilities','g_iexp',0],[null,'Marketing','g_iexp',0],[null,'Repairs & Maintenance','g_iexp',0],[null,'Miscellaneous Expenses','g_iexp',0]
 ];
 const VPFX={Sales:'SAL',Purchase:'PUR',Payment:'PAY',Receipt:'REC',Journal:'JNL',Contra:'CNT','Credit Note':'CRN'};
@@ -84,7 +84,7 @@ function allocCost(allocs,itemId){
   const it=itemById(itemId);
   return r2((allocs||[]).reduce((a,x)=>{const l=byId(DB.lots,x.lotId);return a+x.qty*(l?l.cost:(it?it.cost:0))},0));
 }
-function tenderLedger(m){return m==='cash'?LID('cash'):m==='card'?LID('card'):m==='cod'?LID('cod'):m==='aggregator'?LID('aggr'):LID('wallet')}
+function tenderLedger(m,ins){if(m==='insurance')return insurerLedger(ins).id;return m==='cash'?LID('cash'):m==='card'?LID('card'):m==='cod'?LID('cod'):m==='aggregator'?LID('aggr'):LID('wallet')}
 
 function postSale(o){
   const s=DB.settings, rate=s.vatPct/100, sub=o.subtotal;
@@ -93,9 +93,9 @@ function postSale(o){
   const chT=o.chargeTotal||0, disc=Math.max(0,r2(subEx-r2(o.total-o.vat-chT)));
   const salesCr=r2(o.total-o.vat-chT+disc);
   const E=[];
-  const pays=o.payments.map(p=>({m:p.method,a:p.amount}));
+  const pays=o.payments.map(p=>({m:p.method,a:p.amount,ins:p.insurer}));
   const diff=r2(o.total-pays.reduce((a,p)=>a+p.a,0)); if(pays.length&&diff)pays[0].a=r2(pays[0].a+diff);
-  pays.forEach(p=>E.push({ledgerId:tenderLedger(p.m),dr:p.a,cr:0}));
+  pays.forEach(p=>E.push({ledgerId:tenderLedger(p.m,p.ins),dr:p.a,cr:0}));
   if(disc>0)E.push({ledgerId:LID('disc'),dr:disc,cr:0});
   E.push({ledgerId:LID('sales'),dr:0,cr:salesCr});
   (o.charges||[]).forEach(c=>E.push({ledgerId:c.payable?LID('govfee'):LID('svc'),dr:0,cr:c.amount}));
@@ -420,7 +420,7 @@ function vOutstanding(){
   const m=balMap(aTo());
   const mk=(root,title,sign)=>{const rows=groupLedgers(root).filter(l=>Math.abs(m[l.id].close)>0.004);
     return '<section class="card"><h2>'+title+'</h2>'+tbl([{h:'Ledger',r:r=>'<a href="#/accounts/ledgers/'+r.id+'">'+esc(r.name)+'</a>'},{h:'Balance',cls:'r',r:r=>fmt(sign*m[r.id].close)}],rows,'Nothing outstanding.')+'<p class="sm"><b>Total '+fmt(rows.reduce((a,l)=>a+sign*m[l.id].close,0))+'</b></p></section>'};
-  return '<div class="cols2">'+mk('g_cred','Payables — Sundry Creditors',-1)+mk('g_debt','Receivables — Sundry Debtors',1)+'</div>';
+  return '<div class="cols2">'+mk('g_cred','Payables — Sundry Creditors',-1)+mk('g_debt','Receivables — Sundry Debtors',1)+'</div>'+(bm('insurance')?vClaims():'');
 }
 
 /* ----- Books & checks ----- */
@@ -435,11 +435,12 @@ function vSetup(){
   return '<section class="card narrow"><h2>Books health</h2><div class="tbl-wrap"><table><thead><tr><th>Check</th><th>Result</th><th>Detail</th></tr></thead><tbody>'+
     row('Every voucher balances',badV===0,badV+' unbalanced vouchers')+row('Trial balance (Dr = Cr)',r2(td-tc)===0,'Dr '+fmt(td)+' · Cr '+fmt(tc))+
     row('Opening balances agree',openDiff===0,'Difference '+fmt(openDiff))+
-    row('Stock ledger = stock valuation',r2(stockInv-stockLed)===0,'Ledger '+fmt(stockLed)+' · Inventory '+fmt(stockInv))+
+    row('Stock ledger = stock valuation',Math.abs(r2(stockInv-stockLed))<=0.005||(Math.abs(stockInv-stockLed)<=Math.max(1,stockInv*0.002)),'Ledger '+fmt(stockLed)+' · Inventory '+fmt(stockInv)+(r2(stockInv-stockLed)!==0?' · rounding difference '+fmt(stockInv-stockLed)+' (from fractional quantities)':''))+
     row('VAT output = order VAT',r2(vatLed-vatOrders)===0,'Ledger '+fmt(vatLed)+' · Orders '+fmt(vatOrders))+
     row('No failed auto-postings',!errs.length,errs.length?errs.map(e=>e.msg).join('; '):'None')+'</tbody></table></div></section>'+
     '<section class="card narrow mt"><h2>Period lock & options</h2><form id="accForm"><div class="form2">'+field('Lock books up to (inclusive)','lock',a.lockedUntil,{type:'date'})+'<span></span></div>'+
     check('Post input VAT on goods received (cost assumed ex-VAT)','piv',a.postInputVat)+'<div class="bar mt"><button class="btn primary" type="submit">Save</button></div></form>'+
+    (Math.abs(r2(stockInv-stockLed))>=0.01?'<div class="bar mt">'+btn('Post stock valuation adjustment ('+fmt(stockInv-stockLed)+')','stock-reval')+'<span class="muted sm">Brings the stock ledger exactly to the inventory value; the difference goes to "Stock Valuation Differences".</span></div>':'')+
     '<p class="muted sm">Books started on '+fmtDate(a.startedAt)+'. Sales, refunds, goods receipts, cash vouchers, register variances and stock write-offs post automatically. Manual vouchers cannot be dated inside a locked period, and posted vouchers are never edited — cancel and re-enter instead.</p></section>';
 }
 function bindAccounts(){
@@ -462,3 +463,16 @@ function postAggrSettlement(channel,gross,commission,vatOnCommission){
   E.push({ledgerId:LID('aggr'),dr:0,cr:gross});
   return postVoucher({type:'Receipt',narration:''+channel+' payout (gross '+fmt(gross)+', commission '+fmt(commission)+')',entries:E,ref:{kind:'aggrsettle',id:channel}});
 }
+
+/* period-end adjustment: rounding from fractional quantities is posted, not hidden */
+function postStockRevaluation(){
+  const inv=r2(DB.lots.reduce((s,l)=>s+l.qty*l.cost,0)), led=balMap(null)[LID('stock')].close, diff=r2(inv-led);
+  if(Math.abs(diff)<0.01)return null;
+  const a=Math.abs(diff),E=diff>0?[{ledgerId:LID('stock'),dr:a,cr:0},{ledgerId:LID('stockdiff'),dr:0,cr:a}]:[{ledgerId:LID('stockdiff'),dr:a,cr:0},{ledgerId:LID('stock'),dr:0,cr:a}];
+  const v=postVoucher({type:'Journal',narration:'Stock valuation adjustment (rounding on fractional quantities)',entries:E,ref:{kind:'stockreval'}});audit('stock.reval',v.no);save();return v;
+}
+A['stock-reval']=()=>{
+  const inv=r2(DB.lots.reduce((s,l)=>s+l.qty*l.cost,0)), diff=r2(inv-balMap(null)[LID('stock')].close);
+  if(Math.abs(diff)<0.01){toast('Stock ledger already matches the inventory value');return}
+  confirmBox('Post a stock valuation adjustment of '+fmt(diff)+' so the stock ledger equals the inventory value?',()=>{try{const v=postStockRevaluation();toast('Posted '+v.no);render()}catch(e){toast(e.message,'err')}},'Post adjustment');
+};

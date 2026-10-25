@@ -276,3 +276,13 @@ th,.tile,.pick,.pal-i{text-align:start}th.r,td.r,.r{text-align:end}
 @media (min-width:1500px){.cols3{grid-template-columns:repeat(3,1fr)}.dks{grid-template-columns:repeat(6,1fr)}.kpi.dk strong{font-size:24px}}
 @media (min-width:1900px){.view{padding:28px 40px}.cols2{gap:20px}}
 .main{min-width:0;width:100%}
+
+/* business types */
+.bizgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:16px}
+.bizcard{border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:6px;align-content:start;background:var(--surface)}
+.bizcard.on{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 25%,transparent)}
+.bizcard .bi{font-size:26px}
+.scanbox{grid-column:1/-1;border:2px dashed var(--line);border-radius:16px;padding:40px 20px;text-align:center;display:grid;gap:10px;justify-items:center;margin-top:10px}
+.scanbig{font-family:Montserrat;font-size:26px;font-weight:800;color:var(--brand)}
+
+.cols1{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:16px}

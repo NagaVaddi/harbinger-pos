@@ -163,6 +163,7 @@ function briefing(){
     if(dogs.length)out.push({k:'warn',t:dogs.length+' menu item(s) are weak on both sales and margin (e.g. '+dogs[0].item.name+'). See Insights → Menu profit.'});
   }
   const onn=typeof newOnlineCount==='function'&&can('online')?newOnlineCount():0;if(onn)out.push({k:'bad',t:onn+' new online / delivery-app order(s) waiting. <a href="#/online">Open the queue</a>.',html:true});
+  if(typeof bizBriefing==='function')bizBriefing().forEach(x=>out.push(x));
   const rr=reorderRows(7).filter(r=>r.urgency==='out'||r.urgency==='urgent');
   if(rr.length)out.push({k:'bad',t:rr.length+' item(s) will run out before a delivery can arrive (e.g. '+rr[0].item.name+'). <a href="#/stock/reorder">Review reorder list</a>.',html:true});
   const er=expiryRisk().filter(r=>r.days<=7);if(er.length)out.push({k:'warn',t:money(er.reduce((a,r)=>a+r.value,0))+' of stock is unlikely to sell before it expires within 7 days. <a href="#/stock/reorder">See expiry risk</a>.',html:true});

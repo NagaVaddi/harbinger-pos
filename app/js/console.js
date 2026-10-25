@@ -40,8 +40,8 @@ function itemForm(it){
   return '<div class="form2">'+field('Name','name',it.name,{req:1,af:1})+field('Arabic name','nameAr',it.nameAr)+field('SKU','sku',it.sku)+field('Barcode','barcode',it.barcode)+
     select('Category','categoryId',DB.categories.map(c=>[c.id,c.name]),it.categoryId)+field('Reorder level','reorder',it.reorder,{type:'number',min:0})+
     field('Price','price',it.price,{type:'number',step:'0.01',min:0})+field('Cost','cost',it.cost,{type:'number',step:'0.01',min:0})+
-    select('Preferred supplier','supplierId',[['','— none —']].concat(DB.suppliers.map(s=>[s.id,s.name])),it.supplierId||'')+field('Supplier lead time (days)','leadDays',it.leadDays!=null?it.leadDays:2,{type:'number',min:0})+'</div>'+
-    '<div class="chks">'+check('VAT applies','tax',it.tax)+check('Track stock','track',it.track)+check('Active (sellable)','active',it.active)+'</div>';
+    select('Preferred supplier','supplierId',[['','— none —']].concat(DB.suppliers.map(s=>[s.id,s.name])),it.supplierId||'')+field('Supplier lead time (days)','leadDays',it.leadDays!=null?it.leadDays:2,{type:'number',min:0})+itemExtraFields(it)+'</div>'+
+    '<div class="chks">'+check('VAT applies','tax',it.tax)+check('Track stock','track',it.track)+check('Active (sellable)','active',it.active)+itemExtraChecks(it)+'</div>';
 }
 function saveItem(id,d){
   const name=d.name.trim(); if(!name){toast('Name is required','err');return false}
@@ -50,6 +50,7 @@ function saveItem(id,d){
   if(DB.items.some(x=>x.id!==id&&x.sku.toLowerCase()===sku.toLowerCase())){toast('SKU already exists','err');return false}
   if(bc&&DB.items.some(x=>x.id!==id&&x.barcode===bc)){toast('Barcode already exists','err');return false}
   const rec={name:name,nameAr:d.nameAr.trim(),sku:sku,barcode:bc,categoryId:d.categoryId,price:price,cost:cost,tax:!!d.tax,track:!!d.track,reorder:Math.max(0,num(d.reorder)),active:!!d.active,supplierId:d.supplierId||'',leadDays:d.leadDays===''?2:Math.max(0,Math.round(num(d.leadDays)))};
+  Object.assign(rec,itemExtra(d));
   if(id){Object.assign(itemById(id),rec);audit('item.update',name)}else{rec.id=uid('i');DB.items.push(rec);audit('item.create',name)}
   save();toast('Item saved');render();
 }
@@ -147,7 +148,7 @@ A['stock-adjust']=d=>{
     actions:[{label:'Cancel'},{label:'Apply',cls:'primary',fn:el=>{
       const f=formData(el), q=num(f.qty), reason=f.reason.trim();
       if(f.qty===''||q<0){toast('Enter a quantity','err');return false} if(!reason){toast('A reason is required','err');return false}
-      let delta=f.kind==='count'?r2(q-stockOf(it.id)):(f.kind==='add'?q:-q);
+      let delta=f.kind==='count'?rq(q-stockOf(it.id)):(f.kind==='add'?q:-q);
       if(delta===0){toast('No change');return}
       if(Math.abs(delta*it.cost)>200&&!can('discount_override')){toast('Large adjustments need a manager','err');return false}
       if(delta>0){receiveLot(it.id,'ADJ-'+Date.now().toString(36),null,delta,it.cost,'Adjustment: '+reason);DB.movements[0].type='adjust';postStockValue(r2(delta*it.cost),'Stock adjustment (+) '+it.name+': '+reason)}
@@ -155,7 +156,7 @@ A['stock-adjust']=d=>{
         const avail=lotsOf(it.id).filter(l=>l.qty>0).reduce((a,l)=>a+l.qty,0);
         if(-delta>avail){toast('Not enough stock to remove that quantity','err');return false}
         let need=-delta,val=0;
-        lotsOf(it.id).forEach(l=>{if(need<=0||l.qty<=0)return;const t=Math.min(l.qty,need);l.qty=r2(l.qty-t);need=r2(need-t);val=r2(val+t*l.cost);logMove(it.id,l.id,f.kind==='waste'?'waste':'adjust',-t,'Adjustment: '+reason,'')});
+        lotsOf(it.id).forEach(l=>{if(need<=0||l.qty<=0)return;const t=Math.min(l.qty,need);l.qty=rq(l.qty-t);need=rq(need-t);val=r2(val+t*l.cost);logMove(it.id,l.id,f.kind==='waste'?'waste':'adjust',-t,'Adjustment: '+reason,'')});
         postStockValue(-val,(f.kind==='waste'?'Wastage ':'Stock adjustment (−) ')+it.name+': '+reason);
       }
       audit('stock.adjust',it.name+' '+delta+' ('+reason+')'); save(); toast('Stock updated'); render();
@@ -200,11 +201,11 @@ function vGuests(tab){
       {h:'',cls:'r',r:r=>btn('View','guest-view',r.id)+' '+btn('Edit','guest-edit',r.id)}],rows,'No guests match.');
 }
 A['guest-export']=()=>downloadCSV('guests',[['name','phone','email','visits','spend','points']].concat(DB.customers.map(c=>[c.name,c.phone,c.email,c.visits,c.spend,c.points])));
-function guestForm(c){return '<div class="form2">'+field('Name','name',c&&c.name,{req:1,af:1})+field('Phone','phone',c&&c.phone,{type:'tel'})+field('Email','email',c&&c.email,{type:'email'})+field('Notes','notes',c&&c.notes)+'</div>'}
+function guestForm(c){return '<div class="form2">'+field('Name','name',c&&c.name,{req:1,af:1})+field('Phone','phone',c&&c.phone,{type:'tel'})+field('Email','email',c&&c.email,{type:'email'})+field('Notes','notes',c&&c.notes)+guestExtraFields(c)+'</div>'}
 function saveGuest(c,f,after){
   const name=f.name.trim(); if(!name){toast('Name required','err');return false}
   const phone=f.phone.trim(); if(phone&&DB.customers.some(x=>x!==c&&x.phone===phone)){toast('That phone number already exists','err');return false}
-  const rec={name:name,phone:phone,email:f.email.trim(),notes:f.notes.trim()};
+  const rec=Object.assign({name:name,phone:phone,email:f.email.trim(),notes:f.notes.trim()},guestExtra(f));
   let g=c; if(c)Object.assign(c,rec);else{g=Object.assign({id:uid('g'),points:0,visits:0,spend:0,created:now()},rec);DB.customers.push(g)}
   save();toast('Guest saved'); if(after)after(g); else render();
 }
@@ -258,15 +259,15 @@ A['code-edit']=d=>{
 A['code-del']=d=>confirmBox('Delete this code?',()=>{DB.codes=DB.codes.filter(c=>c.id!==d.id);save();render()},'Delete');
 
 /* ================= Team ================= */
-function vTeam(){
-  const roleBadge=r=>badge(r,r==='admin'?'warn':r==='manager'?'ok':'');
+function vTeamBase(){
+  const roleBadge=r=>badge(roleLabel(r),r==='admin'?'warn':r==='manager'?'ok':'');
   return head('Team','People, roles and access')+'<div class="bar"><span class="sp"></span>'+btn('+ Add person','user-edit',null,'primary')+'</div>'+
     tbl([{h:'Name',r:r=>'<b>'+esc(r.name)+'</b>'},{h:'Username',r:r=>esc(r.username)},{h:'Role',r:r=>roleBadge(r.role)},{h:'Status',r:r=>badge(r.active?'Active':'Disabled',r.active?'ok':'')},{h:'',cls:'r',r:r=>btn('Edit','user-edit',r.id)}],DB.users,'No users.')+
     '<section class="card mt"><h2>Role access</h2><p class="muted sm">Cashier: Register, Guests, own Orders. Manager: everything except Team and Settings. Admin: everything. Discount caps per role are set in Settings.</p></section>';
 }
 A['user-edit']=d=>{
   const u=d.id?byId(DB.users,d.id):null;
-  modal({title:u?'Edit person':'New person',body:'<div class="form2">'+field('Name','name',u&&u.name,{req:1,af:1})+field('Username','username',u&&u.username,{req:1})+select('Role','role',[['cashier','Cashier'],['kitchen','Kitchen'],['manager','Manager'],['accountant','Accountant'],['admin','Admin']],u?u.role:'cashier')+
+  modal({title:u?'Edit person':'New person',body:'<div class="form2">'+field('Name','name',u&&u.name,{req:1,af:1})+field('Username','username',u&&u.username,{req:1})+select('Role','role',roleOptions(u),u?u.role:'cashier')+
     field('Manager PIN (4–6 digits)','pin',u&&u.pin,{max:6})+field(u?'New password (leave blank to keep)':'Password (min 8)','password','',{type:'password'})+'</div>'+check('Active','active',u?u.active:true),
     actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{
       const f=formData(el),un=f.username.trim().toLowerCase();
@@ -360,7 +361,7 @@ C.from=el=>{UIS.from=el.value||UIS.from;render()}; C.to=el=>{UIS.to=el.value||UI
 const REPORTS=[['menu','Menu profit'],['risk','Risk alerts'],['hourly','Busy hours'],['sales','Sales summary'],['items','By item'],['category','By category'],['payments','Payments'],['staff','By cashier'],['vat','VAT'],['margin','Margin per bill'],['valuation','Stock valuation'],['expiry','Expiry']];
 function vReports(tab){
   tab=tab||'sales';
-  if(tab==='menu'||tab==='hourly'||tab==='risk')return head('Insights','Reports with date filters and CSV export')+tabs('reports',REPORTS,tab)+(tab==='menu'?vMenuEng():tab==='hourly'?vHourly():vRisk());
+  if(tab==='menu'||tab==='hourly'||tab==='risk'||tab==='rx'||tab==='provider')return head('Insights','Reports with date filters and CSV export')+tabs('reports',reportTabs(),tab)+(tab==='menu'?vMenuEng():tab==='hourly'?vHourly():tab==='rx'?vRxRegister():tab==='provider'?vProviderReport():vRisk());
   const all=repRange(), done=all.filter(o=>o.status==='completed'), ref=all.filter(o=>o.status==='refunded');
   let body='',csv=null;
   const sum=(a,k)=>r2(a.reduce((s,o)=>s+o[k],0));
@@ -409,7 +410,7 @@ function vReports(tab){
   }
   window._csv=csv; window._csvName='report-'+tab;
   const needsRange=['valuation','expiry'].indexOf(tab)<0;
-  return head('Insights','Reports with date filters and CSV export')+tabs('reports',REPORTS,tab)+
+  return head('Insights','Reports with date filters and CSV export')+tabs('reports',reportTabs(),tab)+
     '<div class="bar">'+(needsRange?'<label class="inl">From <input type="date" data-ch="from" value="'+esc(UIS.from)+'"></label><label class="inl">To <input type="date" data-ch="to" value="'+esc(UIS.to)+'"></label>':'')+'<span class="sp"></span>'+(csv?btn('Export CSV','rep-export'):'')+'</div>'+body;
 }
 A['rep-export']=()=>{if(window._csv)downloadCSV(window._csvName,window._csv)};
@@ -421,7 +422,7 @@ function vSettings(){
   '<form id="setForm" class="card narrow" autocomplete="off"><h2>Business</h2><div class="form2">'+field('Business name','business',s.business)+field('Tax registration no. (TRN)','trn',s.trn)+field('Address','address',s.address)+field('Phone','phone',s.phone)+
   field('Currency code','currency',s.currency,{max:4})+field('Receipt footer','footer',s.footer)+field('Country dialling code (WhatsApp)','countryCode',s.countryCode||'971',{max:4})+
   field('Minimum ticket margin % (0 = off)','minMarginPct',s.minMarginPct!=null?s.minMarginPct:15,{type:'number',min:0,max:100})+'</div>'+
-  '<h2>Country & region</h2><div class="form2">'+select('Country','country',countryList(),s.country||'XX')+'<div class="end"><button type="button" class="btn ghost" data-act="country-apply">Apply country defaults</button></div></div><p class="muted sm">'+esc((COUNTRIES[s.country]||COUNTRIES.XX).note)+' Rates and rules change — confirm with your tax authority.</p>'+
+  ''+bizSettingsHtml()+'<h2>Country & region</h2><div class="form2">'+select('Country','country',countryList(),s.country||'XX')+'<div class="end"><button type="button" class="btn ghost" data-act="country-apply">Apply country defaults</button></div></div><p class="muted sm">'+esc((COUNTRIES[s.country]||COUNTRIES.XX).note)+' Rates and rules change — confirm with your tax authority.</p>'+
   '<h2>Tax & charges</h2><div class="form2">'+field('Tax rate %','vatPct',s.vatPct,{type:'number',step:'0.01',min:0})+select('Prices are','taxInclusive',[['1','Tax-inclusive'],['0','Tax-exclusive']],s.taxInclusive?'1':'0')+
   field('Tax label (VAT / GST / Sales tax)','taxLabel',s.taxLabel||'')+field('Currency decimals','decimals',curDec(),{type:'number',min:0,max:3})+'</div>'+
   '<p class="muted sm">Service charge / municipality fee style add-ons (leave a % at 0 to switch off). Rules differ by country and licence — check what you may charge.</p>'+
