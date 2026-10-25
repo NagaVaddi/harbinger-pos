@@ -1,0 +1,16 @@
+# Allow-list: ignore everything, then re-include only what belongs to the Harbinger POS project.
+/*
+!/.gitignore
+!/README.md
+!/website/
+!/server/
+!/POS_Harbinger_Original_Product_Spec.md
+# never commit runtime data or secrets, even inside allowed folders
+server/data.json
+server/data.json.tmp
+*.env
+.env*
+*.pem
+*.key
+*firebase-adminsdk*.json
+node_modules/

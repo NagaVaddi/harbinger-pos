@@ -1,0 +1,40 @@
+:root{--brand:#124DF8;--navy:#0A0055;--cyan:#00D4E4;--bg:#F4F6FB;--surface:#fff;--text:#10123A;--muted:#5A5F86;--line:#E1E5EF;--ok:#1F9D6B;--danger:#D6454B}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:Montserrat,Inter,sans-serif;line-height:1.2}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.loading,.msg{padding:40px 20px;text-align:center;color:var(--muted)}
+header.top{background:var(--navy);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+header.top h1{font-size:18px}.muted{color:var(--muted)}
+.lang{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 12px}
+.badge{display:inline-block;background:var(--cyan);color:var(--navy);font-weight:700;font-size:12px;border-radius:99px;padding:2px 10px}
+.closed{background:#FFF3CD;color:#7a5b00;padding:12px 20px;text-align:center;font-weight:600}
+nav.cats{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:58px;z-index:15}
+nav.cats button{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:8px 16px;white-space:nowrap;font-weight:600}
+nav.cats button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+main{max-width:980px;margin:0 auto;padding:16px 16px 120px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;justify-content:space-between}
+.item h3{font-size:16px}.price{font-weight:700;color:var(--brand)}
+.item .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.btn{border:0;border-radius:10px;padding:10px 16px;font-weight:700;min-height:44px}
+.btn.primary{background:var(--brand);color:#fff}.btn.ghost{background:var(--surface);border:1px solid var(--line)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.qty{display:inline-flex;align-items:center;gap:8px}.qty button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:18px}
+.cartbar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:30}
+.sheet{position:fixed;inset:0;background:rgba(7,0,58,.55);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.panel{background:var(--surface);border-radius:18px 18px 0 0;width:100%;max-width:640px;max-height:92vh;overflow:auto;padding:20px;display:grid;gap:14px}
+label{display:grid;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
+input,select,textarea{border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:#fff;min-height:44px;width:100%}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:3px solid rgba(18,77,248,.4);outline-offset:1px}
+.types{display:flex;gap:6px;background:var(--bg);padding:4px;border-radius:10px}.types button{flex:1;border:0;background:transparent;border-radius:8px;padding:10px;font-weight:600;color:var(--muted)}.types button.on{background:#fff;color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.line{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.tot{display:flex;justify-content:space-between;font-weight:700;font-size:18px}
+.err{color:var(--danger);font-size:14px;min-height:20px}
+.track{text-align:center;padding:30px 20px;display:grid;gap:14px;max-width:520px;margin:0 auto}
+.steps{display:flex;justify-content:space-between;gap:6px;margin:10px 0}
+.step{flex:1;height:8px;border-radius:4px;background:var(--line)}.step.on{background:var(--ok)}
+.code{font-family:Montserrat;font-size:28px;font-weight:800;letter-spacing:.1em;color:var(--navy)}
+[dir=rtl]{text-align:right}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}

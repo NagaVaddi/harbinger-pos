@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbinger POS — The operating system for restaurant and retail groups</title>
+<meta name="description" content="Harbinger POS is a cloud point-of-sale and franchise control platform for the GCC: fast offline-first registers, stock, kitchen, delivery, loyalty and AI insights in one system.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0A0055; --navy-2:#07003A; --blue:#124DF8; --cyan:#00D4E4;
+  --ink:#10123A; --muted:#5A5F86; --line:#E1E5EF; --bg:#FFFFFF; --soft:#F4F6FB;
+  --ok:#1F9D6B; --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:Montserrat,Inter,sans-serif;line-height:1.15;letter-spacing:-.01em}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1160px;margin:0 auto;padding:0 20px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:12px;font-weight:600;font-size:15px;border:2px solid transparent;cursor:pointer;transition:transform .15s,background .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:#0d3fd0}
+.btn-ghost{border-color:rgba(255,255,255,.35);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.08)}
+.btn-line{border-color:var(--line);color:var(--ink);background:#fff}
+
+/* nav */
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:68px}
+.brand{display:flex;align-items:center;gap:10px;font-family:Montserrat;font-weight:700;font-size:22px;color:var(--navy)}
+.brand svg{height:30px;width:auto}
+.nav ul{display:flex;gap:28px;list-style:none;font-size:15px;font-weight:500;color:var(--muted)}
+.nav ul a:hover{color:var(--navy)}
+.nav .cta{display:flex;gap:10px;align-items:center}
+.menu-btn{display:none;background:none;border:0;font-size:26px;color:var(--navy);cursor:pointer}
+
+/* hero */
+.hero{background:var(--navy);color:#fff;position:relative;overflow:hidden}
+.hero:before{content:"";position:absolute;inset:0;opacity:.35;
+  background-image:repeating-linear-gradient(0deg,rgba(18,77,248,.35) 0 8px,transparent 8px 22px);
+  mask-image:linear-gradient(90deg,transparent 35%,#000 100%);-webkit-mask-image:linear-gradient(90deg,transparent 35%,#000 100%)}
+.hero .wrap{position:relative;display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center;padding-top:84px;padding-bottom:96px}
+.eyebrow{display:inline-block;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);margin-bottom:16px}
+.hero h1{font-size:clamp(34px,5vw,56px);font-weight:800}
+.hero h1 em{font-style:normal;color:var(--cyan)}
+.hero p.lead{font-size:19px;color:#C9CCEE;margin:22px 0 32px;max-width:540px}
+.hero .actions{display:flex;gap:12px;flex-wrap:wrap}
+.hero .note{margin-top:18px;font-size:14px;color:#9EA3D6}
+
+/* register mock */
+.mock{background:#fff;color:var(--ink);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.4);overflow:hidden;border:1px solid rgba(255,255,255,.1)}
+.mock-top{display:flex;gap:6px;padding:12px 14px;background:var(--soft);border-bottom:1px solid var(--line)}
+.mock-top i{width:10px;height:10px;border-radius:50%;background:#CBD0E3}
+.mock-body{display:grid;grid-template-columns:1.4fr 1fr}
+.tiles{padding:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;font-weight:600}
+.tile b{display:block;font-weight:500;color:var(--muted);margin-top:2px}
+.tile.a{border-color:var(--blue);background:#EEF2FF}
+.ticket{background:var(--soft);padding:14px;font-size:12.5px;border-left:1px solid var(--line)}
+.ticket .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)}
+.ticket .total{display:flex;justify-content:space-between;font-weight:700;font-size:15px;margin:12px 0}
+.pay{background:var(--blue);color:#fff;text-align:center;border-radius:10px;padding:10px;font-weight:700}
+
+/* sections */
+section{padding:84px 0}
+.sec-head{max-width:720px;margin-bottom:44px}
+.sec-head h2{font-size:clamp(28px,3.6vw,40px);font-weight:700;color:var(--navy)}
+.sec-head p{color:var(--muted);font-size:18px;margin-top:14px}
+.soft{background:var(--soft)}
+.strip{padding:28px 0;border-bottom:1px solid var(--line)}
+.strip .wrap{display:flex;flex-wrap:wrap;gap:12px 36px;justify-content:center;color:var(--muted);font-weight:600;font-size:14px}
+.strip span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--cyan);margin-right:8px}
+
+.grid{display:grid;gap:20px}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+.card h3{font-size:19px;color:var(--navy);margin:14px 0 8px}
+.card p{color:var(--muted);font-size:15.5px}
+.ic{width:44px;height:44px;border-radius:12px;background:#EAF0FF;display:grid;place-items:center}
+.ic svg{width:22px;height:22px;stroke:var(--blue);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.card.dark{background:var(--navy);border-color:var(--navy)}
+.card.dark h3{color:#fff}.card.dark p{color:#C0C4EA}
+.card.dark .ic{background:rgba(0,212,228,.15)}.card.dark .ic svg{stroke:var(--cyan)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;background:#E4FAFC;color:#00808A;margin-top:12px}
+
+/* surfaces */
+.surf .card{text-align:left}
+.surf .card strong{color:var(--blue);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+
+/* steps */
+.steps{counter-reset:s;display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.step{position:relative;padding-top:54px}
+.step:before{counter-increment:s;content:counter(s);position:absolute;top:0;left:0;width:40px;height:40px;border-radius:10px;background:var(--navy);color:var(--cyan);font-family:Montserrat;font-weight:700;display:grid;place-items:center}
+.step h3{font-size:18px;color:var(--navy);margin-bottom:6px}
+.step p{color:var(--muted);font-size:15px}
+
+/* AI band */
+.ai{background:linear-gradient(135deg,var(--navy) 0,var(--navy-2) 100%);color:#fff}
+.ai .sec-head h2{color:#fff}.ai .sec-head p{color:#C0C4EA}
+.chat{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:22px;font-size:15px}
+.bubble{padding:12px 16px;border-radius:12px;margin-bottom:12px;max-width:90%}
+.bubble.u{background:var(--blue);margin-left:auto}
+.bubble.a{background:rgba(255,255,255,.1)}
+.bubble small{display:block;color:var(--cyan);margin-top:8px;font-size:13px}
+
+/* pricing */
+.price{display:flex;flex-direction:column}
+.price .amt{font-family:Montserrat;font-size:32px;font-weight:800;color:var(--navy);margin:8px 0}
+.price ul{list-style:none;margin:16px 0 24px;display:grid;gap:9px;font-size:15px;color:var(--muted)}
+.price li:before{content:"✓";color:var(--ok);font-weight:700;margin-right:8px}
+.price .btn{margin-top:auto;justify-content:center}
+.price.pop{border:2px solid var(--blue);position:relative}
+.price.pop:before{content:"Most chosen";position:absolute;top:-13px;left:24px;background:var(--blue);color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px}
+
+/* faq */
+details{border:1px solid var(--line);border-radius:12px;padding:18px 22px;background:#fff;margin-bottom:12px}
+summary{font-weight:600;cursor:pointer;color:var(--navy);list-style:none;display:flex;justify-content:space-between}
+summary:after{content:"+";font-size:22px;color:var(--blue);line-height:1}
+details[open] summary:after{content:"–"}
+details p{color:var(--muted);margin-top:10px}
+
+/* cta + form */
+.cta-band{background:var(--blue);color:#fff}
+.cta-band .wrap{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.cta-band h2{font-size:clamp(28px,3.4vw,40px);font-weight:800}
+.cta-band p{margin-top:14px;color:#DDE6FF;font-size:18px}
+form{background:#fff;color:var(--ink);padding:26px;border-radius:16px;display:grid;gap:14px}
+label{font-size:13px;font-weight:600;color:var(--navy);display:grid;gap:6px}
+input,select,textarea{font:inherit;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#fff}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--blue);border-color:transparent}
+form .btn{justify-content:center}
+.form-msg{font-size:14px;color:var(--ok);min-height:20px}
+
+footer{background:var(--navy-2);color:#B4B8E2;padding:56px 0 28px;font-size:14.5px}
+footer .cols{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:32px}
+footer h4{color:#fff;font-family:Montserrat;font-size:14px;margin-bottom:12px}
+footer ul{list-style:none;display:grid;gap:8px}
+footer a:hover{color:#fff}
+footer .brand{color:#fff}
+footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:36px;padding-top:20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+@media (max-width:960px){
+  .hero .wrap,.cta-band .wrap{grid-template-columns:1fr}
+  .g3,.g4,.steps{grid-template-columns:repeat(2,1fr)}
+  footer .cols{grid-template-columns:1fr 1fr}
+  .nav ul{display:none}
+  .nav ul.open{display:flex;position:absolute;top:68px;left:0;right:0;flex-direction:column;background:#fff;padding:20px;border-bottom:1px solid var(--line);gap:16px}
+  .menu-btn{display:block}
+  .nav .cta .btn-line{display:none}
+}
+@media (max-width:600px){
+  section{padding:60px 0}
+  .g2,.g3,.g4,.steps,footer .cols{grid-template-columns:1fr}
+  .mock-body{grid-template-columns:1fr}
+  .ticket{border-left:0;border-top:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 144 127">
+    <rect x="0" y="0" width="60" height="12" fill="#00D4E4"/>
+    <rect x="0" y="23" width="60" height="12" fill="#00D4E4"/>
+    <rect x="82" y="23" width="62" height="12" fill="#00D4E4"/>
+    <rect x="0" y="46" width="144" height="12" fill="#124DF8"/>
+    <rect x="0" y="69" width="144" height="12" fill="#124DF8"/>
+    <rect x="0" y="92" width="60" height="12" fill="#0A0055"/>
+    <rect x="82" y="92" width="62" height="12" fill="#0A0055"/>
+    <rect x="82" y="115" width="62" height="12" fill="#0A0055"/>
+  </symbol>
+</svg>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top" aria-label="Harbinger POS home">
+      <svg viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg> Harbinger <span style="font-weight:500;color:var(--blue)">POS</span>
+    </a>
+    <ul id="menu">
+      <li><a href="#platform">Platform</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#ai">AI</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+    <div class="cta">
+      <a class="btn btn-line" href="app/index.html">Sign in</a>
+      <a class="btn btn-primary" href="#demo">Book a demo</a>
+      <button class="menu-btn" id="mbtn" aria-label="Menu" aria-expanded="false">☰</button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+<section class="hero" style="padding:0">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">An innovation partner for GCC retail &amp; food service</span>
+      <h1>One system to sell faster, stock smarter and <em>run every outlet</em>.</h1>
+      <p class="lead">Harbinger POS combines a lightning-fast, offline-ready register with stock, kitchen, delivery, loyalty and franchise control — and an AI copilot that tells you what to do next.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="#demo">Book a live demo</a>
+        <a class="btn btn-ghost" href="app/index.html">Try the live app</a>
+      </div>
+      <p class="note">Arabic &amp; English · UAE VAT ready · Works offline</p>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="mock-top"><i></i><i></i><i></i></div>
+      <div class="mock-body">
+        <div class="tiles">
+          <div class="tile a">Chicken Wrap<b>AED 18.00</b></div>
+          <div class="tile">Club Sandwich<b>AED 22.00</b></div>
+          <div class="tile">Fresh Juice<b>AED 12.00</b></div>
+          <div class="tile">Mojito<b>AED 14.00</b></div>
+          <div class="tile">Milk Shake<b>AED 16.00</b></div>
+          <div class="tile">Fries<b>AED 9.00</b></div>
+        </div>
+        <div class="ticket">
+          <strong>Ticket · Dine-in T4</strong>
+          <div class="row"><span>2× Chicken Wrap</span><span>36.00</span></div>
+          <div class="row"><span>1× Mojito</span><span>14.00</span></div>
+          <div class="row"><span>VAT 5%</span><span>2.38</span></div>
+          <div class="total"><span>Total</span><span>AED 50.00</span></div>
+          <div class="pay">Pay</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="strip"><div class="wrap">
+  <span>Restaurants</span><span>Cafés &amp; QSR</span><span>Bakeries</span><span>Supermarkets</span><span>Franchise groups</span><span>Cloud kitchens</span>
+</div></div>
+
+<section id="platform">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Everything your business runs on, in one platform</h2>
+      <p>Five connected surfaces share one catalog, one stock ledger and one guest profile — so every outlet, screen and channel always agrees.</p>
+    </div>
+    <div class="grid g3 surf">
+      <div class="card"><strong>Harbinger Register</strong><h3>Sell in seconds</h3><p>Touch-first POS with barcode, weighed items, split bills, hold tickets and receipts by print, SMS or WhatsApp. Keeps selling when the internet drops.</p></div>
+      <div class="card"><strong>Harbinger Console</strong><h3>Control from anywhere</h3><p>Catalog, stock, team, pricing, promotions and reports for every outlet, with approvals and role-based limits built in.</p></div>
+      <div class="card"><strong>Harbinger Kitchen</strong><h3>Orders that flow</h3><p>Station-based kitchen display, course timing, delay alerts and live out-of-stock sync to every channel.</p></div>
+      <div class="card"><strong>Harbinger Dispatch</strong><h3>Delivery &amp; online</h3><p>Own online ordering, QR table ordering and aggregator orders in one queue, with rider assignment and live tracking.</p></div>
+      <div class="card"><strong>Harbinger Mobile</strong><h3>Owner in your pocket</h3><p>Live sales, alerts and approvals on your phone, plus a daily briefing in English or Arabic.</p></div>
+      <div class="card"><strong>Harbinger Open API</strong><h3>Connects to your world</h3><p>Webhooks, API and integrations for accounting, payments, loyalty and delivery partners.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="soft">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Built for the way franchises really work</h2>
+      <p>From the first sale of the day to the last cash count, Harbinger removes the guesswork.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 7h18v10H3z"/><path d="M7 11h2M15 11h2"/></svg></div><h3>Fast, flexible checkout</h3><p>Cash, card, wallets, gift cards, loyalty points and split tenders. Quick-cash keys, tips and instant change.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg></div><h3>Lot-level stock</h3><p>Track batches and expiry, receive against purchase orders, transfer between outlets and count with blind audits.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5M17 8a3 3 0 010 6M21 20c0-2-1.5-3.6-4-4.5"/></svg></div><h3>Guests &amp; loyalty</h3><p>Points, tiers, memberships and gift cards with segments and WhatsApp campaigns that you can measure.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M20 12l-8 8-9-9V3h8l9 9z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg></div><h3>Smart promotions</h3><p>Rules-based automatic offers, codes and happy hours — simulate the impact before you launch.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></div><h3>Reports that matter</h3><p>Sales, margin per bill, VAT, cash sessions, cashier performance and day-close — filter by outlet, channel and date.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg></div><h3>Control without friction</h3><p>Role limits, manager PINs, approval inbox and a tamper-evident audit trail across every outlet.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="ai" class="ai">
+  <div class="wrap grid g2" style="align-items:center;gap:48px">
+    <div class="sec-head" style="margin:0">
+      <span class="eyebrow">Harbinger Intelligence</span>
+      <h2>Ask your business a question. Get an answer and an action.</h2>
+      <p>The copilot reads your sales, stock and staff data — within your permissions — and turns it into plain-language answers, forecasts and one-click fixes.</p>
+      <div style="margin-top:22px;display:grid;gap:10px;color:#DCE0FF">
+        <span>◆ Demand forecasting and suggested purchase orders</span>
+        <span>◆ Fraud and anomaly alerts on voids, refunds and cash</span>
+        <span>◆ Recipe costing and menu engineering</span>
+        <span>◆ Offer simulator and price guidance</span>
+      </div>
+    </div>
+    <div class="chat" aria-label="Example of Harbinger copilot conversation (illustrative)">
+      <div class="bubble u">Why were sales down at Marina yesterday?</div>
+      <div class="bubble a">Lunch orders were 18% lower after the delivery queue ran 25 min behind. Two items were out of stock from 1 pm.<small>Suggested: create a PO for chicken and enable auto-86 sync.</small></div>
+      <div class="bubble u">Create the PO.</div>
+      <div class="bubble a">Draft PO ready for approval. Sent to your manager's inbox.</div>
+      <p style="font-size:12px;color:#9EA3D6;margin-top:8px">Illustrative example. Features roll out by phase.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>Go live in four steps</h2><p>We handle setup so your team is selling quickly.</p></div>
+    <div class="steps">
+      <div class="step"><h3>Import</h3><p>Bring your items, prices, customers and staff from a spreadsheet.</p></div>
+      <div class="step"><h3>Configure</h3><p>Outlets, registers, taxes, printers, roles and menus.</p></div>
+      <div class="step"><h3>Train</h3><p>Hands-on sessions plus a safe training mode on the register.</p></div>
+      <div class="step"><h3>Launch</h3><p>Pilot an outlet, then roll out to the whole group.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing" class="soft">
+  <div class="wrap">
+    <div class="sec-head"><h2>Simple plans that grow with you</h2><p>Final pricing will be confirmed at launch. Ask us for a quote.</p></div>
+    <div class="grid g3">
+      <div class="card price"><h3>Starter</h3><div class="amt">Contact us</div><p>For a single outlet.</p><ul><li>Register + Console</li><li>Stock &amp; lots</li><li>Core reports</li><li>Email support</li></ul><a class="btn btn-line" href="#demo">Get a quote</a></div>
+      <div class="card price pop"><h3>Growth</h3><div class="amt">Contact us</div><p>For multi-outlet groups.</p><ul><li>Everything in Starter</li><li>Kitchen &amp; dispatch</li><li>Loyalty &amp; promotions</li><li>Approvals &amp; audit trail</li></ul><a class="btn btn-primary" href="#demo">Book a demo</a></div>
+      <div class="card price"><h3>Enterprise</h3><div class="amt">Custom</div><p>For franchisors and brands.</p><ul><li>Control tower &amp; royalties</li><li>AI copilot &amp; forecasting</li><li>SSO, API &amp; integrations</li><li>Dedicated success manager</li></ul><a class="btn btn-line" href="#demo">Talk to sales</a></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap" style="max-width:800px">
+    <div class="sec-head"><h2>Questions, answered</h2></div>
+    <details><summary>Does it work without internet?</summary><p>Yes. The register keeps selling offline and syncs safely when the connection returns. An optional local outlet hub keeps kitchen screens working too.</p></details>
+    <details><summary>Is it UAE VAT compliant?</summary><p>Receipts and invoices carry your TRN and 5% VAT breakdown, with VAT reports for returns. E-invoicing readiness is part of the roadmap.</p></details>
+    <details><summary>Can we use our own hardware?</summary><p>We certify common receipt printers, cash drawers, scanners, scales and card terminals. Ask for the current list.</p></details>
+    <details><summary>Do you support Arabic?</summary><p>Yes — full Arabic and English with right-to-left layouts, bilingual item names and receipts.</p></details>
+    <details><summary>Can I connect delivery apps and accounting?</summary><p>Aggregator, payment and accounting integrations are available through our open API and partner connectors, delivered by phase.</p></details>
+  </div>
+</section>
+
+<section id="demo" class="cta-band">
+  <div class="wrap">
+    <div>
+      <h2>See Harbinger running your business.</h2>
+      <p>Book a 30-minute walkthrough tailored to your outlets, menu and goals.</p>
+    </div>
+    <form id="demoForm" novalidate>
+      <label>Full name<input name="name" required autocomplete="name"></label>
+      <label>Work email<input name="email" type="email" required autocomplete="email"></label>
+      <label>Phone / WhatsApp<input name="phone" type="tel" autocomplete="tel"></label>
+      <label>Number of outlets
+        <select name="outlets"><option>1</option><option>2–5</option><option>6–20</option><option>21+</option></select>
+      </label>
+      <button class="btn btn-primary" type="submit">Request demo</button>
+      <div class="form-msg" id="formMsg" role="status"></div>
+    </form>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <div class="brand"><svg viewBox="0 0 144 127" aria-hidden="true" style="height:28px"><use href="#mark"/></svg> Harbinger POS</div>
+        <p style="margin-top:12px;max-width:300px">An innovation partner for restaurant, retail and franchise groups across the GCC.</p>
+      </div>
+      <div><h4>Product</h4><ul><li><a href="#platform">Platform</a></li><li><a href="#features">Features</a></li><li><a href="#ai">AI copilot</a></li><li><a href="#pricing">Pricing</a></li></ul></div>
+      <div><h4>Company</h4><ul><li><a href="#demo">Contact</a></li><li><a href="#faq">FAQ</a></li></ul></div>
+      <div><h4>Legal</h4><ul><li><a href="#">Privacy</a></li><li><a href="#">Terms</a></li></ul></div>
+    </div>
+    <div class="legal"><span>© <span id="yr"></span> Harbinger. All rights reserved.</span><span>Made for the GCC</span></div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  document.getElementById('yr').textContent = new Date().getFullYear();
+  var b=document.getElementById('mbtn'), m=document.getElementById('menu');
+  b.addEventListener('click',function(){var o=m.classList.toggle('open');b.setAttribute('aria-expanded',o)});
+  m.addEventListener('click',function(e){if(e.target.tagName==='A'){m.classList.remove('open');b.setAttribute('aria-expanded','false')}});
+  var f=document.getElementById('demoForm'), msg=document.getElementById('formMsg');
+  f.addEventListener('submit',function(e){
+    e.preventDefault();
+    var n=f.name.value.trim(), em=f.email.value.trim();
+    if(!n||!/^\S+@\S+\.\S+$/.test(em)){msg.style.color='#D6454B';msg.textContent='Please enter your name and a valid email.';return}
+    // TODO: connect to backend/CRM endpoint. Currently demo-only; nothing is sent.
+    msg.style.color='#1F9D6B';msg.textContent='Thanks '+n.split(' ')[0]+'! (Demo form: connect to your CRM to receive requests.)';
+    f.reset();
+  });
+})();
+</script>
+</body>
+</html>
