@@ -60,7 +60,7 @@ function save(){
   try{localStorage.setItem(KEY,JSON.stringify(DB))}
   catch(e){ if(typeof toast==='function')toast('Could not save: browser storage is full or blocked.','err') }
 }
-function migrate(){ DB.counts=DB.counts||[]; DB.drivers=DB.drivers||[]; DB.jobs=DB.jobs||[]; DB.warranty=DB.warranty||[]; DB.breakdowns=DB.breakdowns||[]; DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0}; if(DB.seq.job==null)DB.seq.job=0;
+function migrate(){ if(DB.settings&&!DB.settings.sellAlways){DB.settings.allowNegative=true;DB.settings.sellAlways=1} DB.counts=DB.counts||[]; DB.drivers=DB.drivers||[]; DB.jobs=DB.jobs||[]; DB.warranty=DB.warranty||[]; DB.breakdowns=DB.breakdowns||[]; DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0}; if(DB.seq.job==null)DB.seq.job=0;
   if(DB.settings.blockExpired===undefined)DB.settings.blockExpired=true;
   if(!DB.settings.businessType)DB.settings.businessType='restaurant';
   if(typeof ensureAccounts==='function')ensureAccounts();
@@ -103,7 +103,7 @@ function seed(type){
   const db={
     v:1,
     settings:{business:'Harbinger Demo Restaurant',trn:'100000000000003',address:'Dubai, UAE',phone:'',currency:'AED',vatPct:5,taxInclusive:true,country:'AE',taxLabel:'VAT',receiptLang:'both',charges:[],countryCode:'971',
-      footer:'Thank you for dining with us!',pointsPerAed:0.1,pointValue:0.1,caps:{admin:100,manager:30,cashier:10},allowNegative:false,businessType:'restaurant',blockExpired:true,theme:'A',mode:'auto'},
+      footer:'Thank you for dining with us!',pointsPerAed:0.1,pointValue:0.1,caps:{admin:100,manager:30,cashier:10},allowNegative:true,sellAlways:1,businessType:'restaurant',blockExpired:true,theme:'A',mode:'auto'},
     users:users,categories:cats,items:items,lots:lots,movements:movements,
     customers:[
       {id:'g1',name:'Walk-in Sample',phone:'0500000001',email:'',points:25,visits:0,spend:0,notes:'',created:t},
