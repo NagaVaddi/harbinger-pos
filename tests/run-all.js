@@ -1,7 +1,7 @@
 'use strict';
 // Runs every suite in its own process. Suites that need optional dev dependencies are skipped with a note.
 const {spawnSync}=require('child_process'), path=require('path');
-const suites=[['cloud.test.js',[]],['gateway.test.js',[]],['accounting.test.js',[]],['intelligence.test.js',[]],['dashboard.test.js',[]],
+const suites=[['cloud.test.js',[]],['globals.test.js',[]],['gateway.test.js',[]],['accounting.test.js',[]],['intelligence.test.js',[]],['business.test.js',[]],['dashboard.test.js',[]],
   ['regions.test.js',['@xmldom/xmldom']],['online.test.js',['@xmldom/xmldom','jsqr']]];
 let failed=0,total=0;
 for(const [f,deps] of suites){

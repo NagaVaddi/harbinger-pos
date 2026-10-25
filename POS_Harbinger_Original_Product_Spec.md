@@ -426,3 +426,23 @@ Implemented in the working app under **Accounts** (role: Admin, Accountant).
 - *Live connections need each platform's partner credentials and a verified adapter* — see `server/README.md`.
 
 **Gateway server** (`server/gateway.js`, no dependencies): serves the apps, public order API with server-side price checks and rate limits, authenticated inbox, signed webhooks.
+
+
+---
+
+## 22. Business Types (industry profiles)
+One platform, six profiles chosen at sign-up. Each sets wording, enabled modules, register behaviour, staff roles, sample catalogue and its own dashboard.
+
+| | Restaurant | Supermarket | Retail | Pharmacy | Clinic / hospital billing | Salon / spa |
+|---|---|---|---|---|---|---|
+| Register mode | tiles, tables, kitchen display | scan-first, weighed items, EAN-13 scale barcodes, `3*barcode` | scan-first, size/colour variants | scan-first, Rx and controlled drugs, insurance | services by provider, insurance co-pay | services by stylist |
+| Order types | dine-in, takeaway, delivery | in-store, delivery | in-store, delivery | over-the-counter, delivery | outpatient, inpatient | walk-in, appointment |
+| Stock | lots, expiry | lots, expiry (expired blocked) | by size/colour | batch & expiry (expired blocked), Rx register | pharmacy & supplies | retail products |
+| Roles | admin, manager, cashier, waiter, kitchen, accountant | admin, manager, cashier, store keeper, accountant | admin, manager, sales assistant, store keeper, accountant | admin, pharmacist-in-charge, pharmacist, counter assistant, store keeper, accountant | admin, billing manager, billing clerk, pharmacist, store keeper, accountant | admin, manager, front desk, accountant |
+| Dashboard | busy hours, channels, kitchen | basket size, fast/dead stock, expiry, shrink | sell-through, margin by category, returns | Rx vs OTC, expiry risk, claims | revenue by department/doctor, payer mix, claims | stylist board, repeat clients, commission |
+
+**Healthcare boundary.** The clinic profile is a **billing and pharmacy-counter** system (services, payers, co-pay, claims, provider commissions). It deliberately holds **no clinical data** (no diagnoses, notes or results). Patient identifiers are limited to a file/MRN number and insurance details; health data is subject to strict privacy law (e.g. UAE and KSA health-data rules) and needs its own security review before any clinical features are added. Tax treatment of healthcare (for example zero-rating in some countries) is configurable per item and must be confirmed locally.
+
+**Pharmacy controls.** Prescription-only items need a prescription number, prescriber and patient; controlled medicines additionally need an ID number and a pharmacist/manager PIN approval. Every dispensing is written to an append-only prescription register with batch and expiry. Expired stock is excluded from sellable quantity and cannot be sold.
+
+**Insurance.** An insurer is a receivable account; the register splits a bill into insurer share and patient co-pay; claims are settled later with an optional rejected amount written off.

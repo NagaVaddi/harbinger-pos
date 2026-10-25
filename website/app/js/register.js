@@ -3,7 +3,7 @@
 
 const R={cat:'all',q:'',cart:[],type:'takeaway',table:'',customerId:null,code:null,manual:null,redeem:0,sessionId:null};
 const VOUCHER_LIMIT=100; // cashiers need a manager PIN above this
-function regReset(){R.cart=[];R.type='takeaway';R.table='';R.customerId=null;R.code=null;R.manual=null;R.redeem=0;R.marginOk=false}
+function regReset(){R.provider='';R.cart=[];R.type='takeaway';R.table='';R.customerId=null;R.code=null;R.manual=null;R.redeem=0;R.marginOk=false}
 /* Profit guard: live margin on the ticket, ex-VAT, against item cost */
 const minMargin=()=>DB.settings.minMarginPct!=null?DB.settings.minMarginPct:15;
 function ticketMargin(T){
@@ -22,7 +22,7 @@ function curSession(){
   if(!s){s=DB.sessions.find(x=>!x.closedAt&&x.openedBy===ME.id)||null;R.sessionId=s?s.id:null}
   return s;
 }
-const stockLeft=it=>it.track?stockOf(it.id)-R.cart.filter(l=>l.itemId===it.id).reduce((a,l)=>a+l.qty,0):Infinity;
+const stockLeft=it=>it.track?rq(sellableOf(it.id)-R.cart.filter(l=>l.itemId===it.id).reduce((a,l)=>a+l.qty,0)):Infinity;
 
 /* ---------- screens ---------- */
 function vRegister(){
@@ -30,27 +30,23 @@ function vRegister(){
   if(!sess)return vOpenRegister();
   const ct=byId(DB.counters,sess.counterId), T=computeTotals(R), cu=byId(DB.customers,R.customerId);
   const items=DB.items.filter(i=>i.active&&(R.cat==='all'||i.categoryId===R.cat)&&match(R.q,[i.name,i.nameAr,i.sku,i.barcode]));
-  const tiles=items.map(i=>{
-    const left=stockLeft(i), out=left<=0&&!DB.settings.allowNegative;
-    return '<button type="button" class="tile'+(out?' out':'')+'" data-act="r-add" data-id="'+i.id+'"'+(out?' disabled':'')+'><span class="tn">'+esc(dn(i))+'</span><span class="tp">'+fmt(i.price)+'</span>'+
-      (i.track&&left<=i.reorder&&left>0?'<span class="ts">'+left+' '+tr('left')+'</span>':'')+(out?'<span class="ts bad">'+tr('Out of stock')+'</span>':'')+'</button>';
-  }).join('')||'<div class="empty">No items match.</div>';
-  const chips='<button type="button" class="chip'+(R.cat==='all'?' on':'')+'" data-act="r-cat" data-id="all">'+tr('All')+'</button>'+DB.categories.map(c=>'<button type="button" class="chip'+(R.cat===c.id?' on':'')+'" data-act="r-cat" data-id="'+c.id+'">'+esc(dn(c))+'</button>').join('');
-  const lines=T.lines.map(l=>'<div class="ln"><div class="ln-t"><b>'+esc(dn(l.it))+'</b><span>'+fmt(l.total)+'</span></div><div class="ln-c">'+
-    '<button type="button" class="q" data-act="r-dec" data-id="'+l.key+'" aria-label="Decrease">−</button><span class="qn">'+l.qty+'</span><button type="button" class="q" data-act="r-inc" data-id="'+l.key+'" aria-label="Increase">+</button>'+
+  const showTiles=!bm('scanFirst')||!!R.q||!!R.browse;
+  const tiles=showTiles?tilesHtml(items):'<div class="scanbox"><div class="scanbig">'+tr('Scan items')+'</div><p class="muted">'+tr('Use the barcode scanner, or type a name, code or PLU.')+' <code>3*barcode</code> '+tr('adds 3.')+'</p><button type="button" class="btn ghost" data-act="r-browse">'+tr('Browse items')+'</button></div>';
+  const chips=!showTiles?'':'<button type="button" class="chip'+(R.cat==='all'?' on':'')+'" data-act="r-cat" data-id="all">'+tr('All')+'</button>'+DB.categories.map(c=>'<button type="button" class="chip'+(R.cat===c.id?' on':'')+'" data-act="r-cat" data-id="'+c.id+'">'+esc(dn(c))+'</button>').join('');
+  const lines=T.lines.map(l=>'<div class="ln"><div class="ln-t"><b>'+esc(dn(l.it))+'</b><span>'+fmt(l.total)+'</span></div>'+lineMeta(l)+'<div class="ln-c">'+lineQtyUi(l)+
     '<button type="button" class="lnk" data-act="r-note" data-id="'+l.key+'">'+(l.note?'✎ '+esc(l.note):tr('+ note'))+'</button><button type="button" class="lnk bad" data-act="r-del" data-id="'+l.key+'" aria-label="Remove">✕</button></div></div>').join('')||'<div class="empty">'+tr('Tap an item or scan a barcode to start.')+'</div>';
   const disc=T.discounts.map(d=>'<div class="tr disc"><span>'+esc(d.label)+'</span><span>−'+fmt(d.amount)+'</span></div>').join('');
-  const types=[['dine-in',tr('Dine-in')],['takeaway',tr('Takeaway')],['delivery',tr('Delivery')]].map(t=>'<button type="button" class="seg'+(R.type===t[0]?' on':'')+'" data-act="r-type" data-id="'+t[0]+'">'+t[1]+'</button>').join('');
+  const types=biz().types.map(t=>[t,typeLabel(t)]).map(t=>'<button type="button" class="seg'+(R.type===t[0]?' on':'')+'" data-act="r-type" data-id="'+t[0]+'">'+t[1]+'</button>').join('');
   const canPay=R.cart.length>0;
   return '<div class="reg">'+
   '<header class="rh"><div class="rb"><svg class="mk" viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg><strong>'+tr('Harbinger Register')+'</strong><span class="muted">'+esc(ct.name)+' · '+esc(ME.name)+'</span></div>'+
-  '<div class="ra"><button type="button" class="btn ghost sm" data-act="go-online">'+tr('Online')+' ('+newOnlineCount()+')</button><button type="button" class="btn ghost sm" data-act="r-held">'+tr('Held')+' ('+DB.held.length+')</button><button type="button" class="btn ghost sm" data-act="r-orders">'+tr('Orders')+'</button><button type="button" class="btn ghost sm" data-act="r-voucher">'+tr('Cash in/out')+'</button>'+
+  '<div class="ra">'+(bm('scanFirst')?'<button type="button" class="btn ghost sm" data-act="r-browse">'+(R.browse?tr('Scan items'):tr('Browse items'))+'</button>':'')+(bm('online')?'<button type="button" class="btn ghost sm" data-act="go-online">'+tr('Online')+' ('+newOnlineCount()+')</button>':'')+'<button type="button" class="btn ghost sm" data-act="r-held">'+tr('Held')+' ('+DB.held.length+')</button><button type="button" class="btn ghost sm" data-act="r-orders">'+tr('Orders')+'</button><button type="button" class="btn ghost sm" data-act="r-voucher">'+tr('Cash in/out')+'</button>'+
   '<button type="button" class="btn ghost sm" data-act="r-close">'+tr('Close register')+'</button><button type="button" class="btn ghost sm" data-act="lang-toggle" aria-label="Language">'+(LANG==='ar'?'EN':'ع')+'</button><button type="button" class="btn ghost sm" data-act="r-exit">'+(can('dashboard')?tr('Console'):tr('Sign out'))+'</button></div></header>'+
   '<div class="rbody"><section class="rl"><div class="rs"><input id="rq" type="search" placeholder="'+esc(tr('Search item or scan barcode  (F2)'))+'" value="'+esc(R.q)+'" data-in="rq" autocomplete="off" aria-label="Search items or scan barcode"></div>'+
   '<div class="chips" role="tablist" aria-label="Categories">'+chips+'</div><div class="tiles" role="list">'+tiles+'</div></section>'+
   '<aside class="rt" aria-label="Current ticket"><div class="segs">'+types+'</div>'+
-  (R.type==='dine-in'?'<input class="tbl-in" id="rtable" placeholder="'+esc(tr('Table / seat'))+'" maxlength="12" value="'+esc(R.table)+'" data-in="rtable" aria-label="Table">':'')+
-  '<div class="gl">'+(cu?'<span class="gchip"><b>'+esc(cu.name)+'</b> · '+cu.points+' pts <button type="button" data-act="r-guest-x" aria-label="Remove guest">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-guest">'+tr('+ Guest')+'</button>')+'</div>'+
+  (bm('tables')&&R.type==='dine-in'?'<input class="tbl-in" id="rtable" placeholder="'+esc(tr('Table / seat'))+'" maxlength="12" value="'+esc(R.table)+'" data-in="rtable" aria-label="Table">':'')+
+  '<div class="gl">'+(cu?'<span class="gchip"><b>'+esc(cu.name)+'</b> · '+(bm('insurance')&&cu.insurer?esc(cu.insurer)+' · co-pay '+(cu.copay||0)+'%':cu.points+' pts')+' <button type="button" data-act="r-guest-x" aria-label="Remove guest">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-guest">'+tr('+ Guest')+'</button>')+'</div>'+
   '<div class="lines">'+lines+'</div>'+
   '<div class="sums"><div class="tr"><span>'+tr('Subtotal')+'</span><span>'+fmt(T.subtotal)+'</span></div>'+disc+
   (T.charges||[]).map(c=>'<div class="tr"><span>'+esc(c.name)+' '+c.pct+'%</span><span>'+fmt(c.amount)+'</span></div>').join('')+
@@ -82,12 +78,8 @@ A['r-resume']=d=>{R.sessionId=d.id;render()};
 A['r-exit']=()=>{if(can('dashboard'))location.hash='#/dashboard';else{logout();location.hash='#/';render()}};
 
 /* ---------- cart ---------- */
-function addItem(it){
-  if(stockLeft(it)<=0&&!DB.settings.allowNegative){toast(it.name+' is out of stock','err');return}
-  const l=R.cart.find(x=>x.itemId===it.id&&!x.note);
-  if(l)l.qty++;else R.cart.push({key:uid('l'),itemId:it.id,qty:1,note:''});
-}
-A['r-add']=d=>{addItem(itemById(d.id));render()};
+A['r-add']=d=>addItemFlow(itemById(d.id));
+A['r-browse']=()=>{R.browse=!R.browse;render()};
 A['r-inc']=d=>{const l=byId2(d.id);if(!l)return;const it=itemById(l.itemId);if(stockLeft(it)<=0&&!DB.settings.allowNegative){toast('No more stock for '+it.name,'err');return}l.qty++;render()};
 A['r-dec']=d=>{const l=byId2(d.id);if(!l)return;l.qty--;if(l.qty<=0)R.cart=R.cart.filter(x=>x!==l);render()};
 A['r-del']=d=>{R.cart=R.cart.filter(x=>x.key!==d.id);render()};
@@ -98,11 +90,11 @@ A['r-type']=d=>{R.type=d.id;if(d.id!=='dine-in')R.table='';render()};
 I.rq=el=>{R.q=el.value;render()};
 I.rtable=el=>{R.table=el.value};
 function regScan(){
-  const q=R.q.trim().toLowerCase(); if(!q)return;
-  const ex=DB.items.find(i=>i.active&&(i.barcode===R.q.trim()||i.sku.toLowerCase()===q));
+  const raw=R.q.trim(); if(!raw)return;
+  const p=parseScan(raw);
+  if(p){addItemFlow(p.item,(p.weight||p.qty>1)?p.qty:undefined);R.q='';render();return}
   const list=DB.items.filter(i=>i.active&&(R.cat==='all'||i.categoryId===R.cat)&&match(R.q,[i.name,i.nameAr,i.sku,i.barcode]));
-  const it=ex||(list.length===1?list[0]:null);
-  if(it){addItem(it);R.q='';render()}else toast(list.length?'Several matches — tap the item':'No item found for "'+R.q+'"','err');
+  if(list.length===1){addItemFlow(list[0]);R.q='';render()}else toast(list.length?'Several matches — tap the item':'No item found for "'+R.q+'"','err');
 }
 A['r-clear']=()=>confirmBox('Clear this ticket?',()=>{regReset();render()},'Clear');
 
@@ -169,16 +161,18 @@ function payBody(){
   const due=P.total, paid=paidSum(), rem=r2(due-paid), chg=r2(P.payments.reduce((a,p)=>a+(p.tendered-p.amount),0));
   const qk=P.method==='cash'?[10,20,50,100,200,500].map(v=>'<button type="button" class="btn ghost sm" data-act="pay-q" data-id="'+v+'">'+v+'</button>').join('')+'<button type="button" class="btn ghost sm" data-act="pay-q" data-id="'+rem+'">'+tr('Exact')+'</button>':'';
   return '<div class="paysum"><div><span class="muted">'+tr('Due')+'</span><strong>'+fmt(due)+'</strong></div><div><span class="muted">'+tr('Paid')+'</span><strong>'+fmt(paid)+'</strong></div><div><span class="muted">'+(rem>0?tr('Remaining'):tr('Change'))+'</span><strong class="'+(rem>0?'neg':'pos')+'">'+fmt(rem>0?rem:chg)+'</strong></div></div>'+
-    '<div class="segs">'+[['cash',tr('Cash')],['card',tr('Card')],['wallet',tr('Wallet / QR')]].map(m=>'<button type="button" class="seg'+(P.method===m[0]?' on':'')+'" data-act="pay-m" data-id="'+m[0]+'">'+m[1]+'</button>').join('')+'</div>'+
-    (rem>0?'<div class="payrow"><input id="payAmt" type="number" step="0.01" min="0" value="'+rem+'" aria-label="Amount"><button type="button" class="btn primary" data-act="pay-add">'+tr('Add payment')+'</button></div><div class="qk">'+qk+'</div>':'')+
+    '<div class="segs">'+payMethods().map(m=>'<button type="button" class="seg'+(P.method===m[0]?' on':'')+'" data-act="pay-m" data-id="'+m[0]+'">'+m[1]+'</button>').join('')+'</div>'+
+    (rem>0&&P.method==='insurance'?'<label>Insurer<input id="payIns" list="insList" value="'+esc(P.insurer||insuranceDefaults(rem).insurer)+'" maxlength="60" autocomplete="off"></label><datalist id="insList">'+insurers().map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>':'')+
+    (rem>0?'<div class="payrow"><input id="payAmt" type="number" step="0.01" min="0" value="'+(P.method==='insurance'?insuranceDefaults(rem).amount:rem)+'" aria-label="Amount"><button type="button" class="btn primary" data-act="pay-add">'+tr('Add payment')+'</button></div><div class="qk">'+qk+'</div>':'')+
     (P.payments.length?'<ul class="plist">'+P.payments.map((p,i)=>'<li>'+esc(p.method.toUpperCase())+' · '+fmt(p.tendered)+(p.tendered>p.amount?' (change '+fmt(r2(p.tendered-p.amount))+')':'')+' <button type="button" class="lnk bad" data-act="pay-rm" data-id="'+i+'" aria-label="Remove payment">✕</button></li>').join('')+'</ul>':'')+
     '<button type="button" class="pay done" data-act="pay-done"'+(rem>0?' disabled':'')+'>'+tr('Complete sale')+'</button>';
 }
+const payMethods=()=>[['cash',tr('Cash')],['card',tr('Card')],['wallet',tr('Wallet / QR')]].concat(bm('insurance')?[['insurance','Insurance']]:[]);
 const redrawPay=()=>{const b=$('#paybody');if(b){b.innerHTML=payBody();const a=$('#payAmt');if(a){a.focus();a.select()}}};
 A['r-pay']=()=>{
   if(!R.cart.length)return;
   const T=computeTotals(R);
-  for(const l of T.lines){if(l.it.track&&!DB.settings.allowNegative&&stockOf(l.it.id)<l.qty){toast('Not enough stock for '+l.it.name,'err');return}}
+  for(const l of T.lines){if(l.it.track&&!DB.settings.allowNegative&&sellableOf(l.it.id)<l.qty){toast('Not enough sellable stock for '+l.it.name,'err');return}}
   const mg=ticketMargin(T), mm=minMargin();
   if(mm>0&&T.total>0&&mg.pct<mm){
     if(!can('discount_override')&&!R.marginOk){requireManager('Profit guard: margin on this ticket is '+Math.round(mg.pct)+'% (minimum '+mm+'%)',()=>{R.marginOk=true;A['r-pay']()});return}
@@ -195,12 +189,13 @@ A['pay-add']=()=>{
   const amt=r2(num(a.value)), rem=r2(P.total-paidSum());
   if(amt<=0){toast('Enter an amount','err');return}
   if(P.method!=='cash'&&amt>rem){toast('Card and wallet payments cannot exceed the amount due','err');return}
-  P.payments.push({method:P.method,amount:Math.min(amt,rem),tendered:amt});redrawPay();
+  let ins='';if(P.method==='insurance'){ins=(($('#payIns')||{}).value||'').trim();if(!ins){toast('Choose the insurer','err');return}P.insurer=ins}
+  P.payments.push({method:P.method,amount:Math.min(amt,rem),tendered:amt,insurer:ins});redrawPay();
 };
 A['pay-rm']=d=>{P.payments.splice(+d.id,1);redrawPay()};
 A['pay-done']=()=>{
   if(r2(P.total-paidSum())>0){toast('Amount still due','err');return}
-  const pays=P.payments.map(p=>({method:p.method,amount:p.amount,tendered:p.tendered}));
+  const pays=P.payments.map(p=>({method:p.method,amount:p.amount,tendered:p.tendered,insurer:p.insurer||''}));
   const change=r2(P.payments.reduce((a,p)=>a+(p.tendered-p.amount),0));
   closeModal(true);completeSale(pays,change);
 };
@@ -208,20 +203,20 @@ A['pay-done']=()=>{
    Used by the register and by online / delivery-app orders. Returns the order, or null (with a toast) if it cannot be created. */
 function finalizeOrder(S,sess,payments,change,extra){
   const T=computeTotals(S); if(!S.cart.length)return null;
-  for(const l of T.lines){if(l.it.track&&!DB.settings.allowNegative&&stockOf(l.it.id)<l.qty){toast("Not enough stock for "+l.it.name,"err");return null}}
+  for(const l of T.lines){if(l.it.track&&!DB.settings.allowNegative&&sellableOf(l.it.id)<l.qty){toast("Not enough sellable stock for "+l.it.name,"err");return null}}
   const ct=byId(DB.counters,sess.counterId); DB.seq.order++;
   const no=ct.code+"-"+String(DB.seq.order).padStart(5,"0");
   const lines=T.lines.map(l=>{
     const allocs=l.it.track?deductStock(l.it.id,l.qty,"Sale "+no):[];
-    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0};
+    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0};
   });
   const cu=byId(DB.customers,S.customerId), earned=cu?Math.floor(T.total*DB.settings.pointsPerAed):0;
   const usedCode=T.discounts.some(d=>d.kind==="code")?S.code:null;
   const order=Object.assign({id:uid("o"),no:no,ts:now(),counterId:sess.counterId,sessionId:sess.id,userId:ME.id,type:S.type,table:S.type==="dine-in"?S.table:"",customerId:cu?cu.id:null,lines:lines,
-    subtotal:T.subtotal,discounts:T.discounts,discountTotal:T.discountTotal,charges:T.charges,chargeTotal:T.chargeTotal,vat:T.vat,total:T.total,payments:payments,change:change,status:"completed",pointsEarned:earned,pointsRedeemed:T.redeemed,code:usedCode,kds:{status:"new",ts:now()},marginPct:Math.round(ticketMargin(T).pct*10)/10},extra||{});
+    subtotal:T.subtotal,discounts:T.discounts,discountTotal:T.discountTotal,charges:T.charges,chargeTotal:T.chargeTotal,vat:T.vat,total:T.total,payments:payments,change:change,status:"completed",pointsEarned:earned,pointsRedeemed:T.redeemed,code:usedCode,kds:bm("kitchen")?{status:"new",ts:now()}:undefined,insurer:((payments.find(p=>p.method==="insurance"))||{}).insurer||"",marginPct:Math.round(ticketMargin(T).pct*10)/10},extra||{});
   if(cu){cu.points=Math.max(0,cu.points-T.redeemed+earned);cu.visits++;cu.spend=r2(cu.spend+T.total)}
   if(usedCode){const c=byId(DB.codes,usedCode);if(c)c.used++}
-  DB.orders.push(order);postSale(order);if(typeof einvStamp==="function")einvStamp(order,"invoice");audit("sale",no+" "+money(T.total));save();
+  DB.orders.push(order);if(typeof logRx==="function")logRx(order);postSale(order);if(typeof einvStamp==="function")einvStamp(order,"invoice");audit("sale",no+" "+money(T.total));save();
   return order;
 }
 function completeSale(payments,change){

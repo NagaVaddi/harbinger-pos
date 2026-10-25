@@ -22,7 +22,7 @@ node server/cloud/cloud.js                         # http://127.0.0.1:8788
 
 | Endpoint | Who | Purpose |
 |---|---|---|
-| `POST /api/auth/register` | public, if enabled | create business + owner |
+| `POST /api/auth/register` | public, if enabled | create business + owner; **`businessType` is required**: restaurant, supermarket, retail, pharmacy, clinic or salon |
 | `POST /api/auth/login` | public | email, password, optional `code` (2FA / backup code) |
 | `GET /api/auth/session` · `POST /api/auth/logout` · `/logout-all` · `/change-password` | signed in | session info (user, tenant, csrf, permissions) |
 | `POST /api/auth/2fa/setup` · `/enable` · `/disable` | signed in | TOTP enrolment, backup codes |
@@ -33,10 +33,10 @@ node server/cloud/cloud.js                         # http://127.0.0.1:8788
 | `GET /api/public/:slug/menu` · `POST /api/public/:slug/orders` · `GET /api/public/:slug/orders/:track` | public | storefront |
 | `POST /webhooks/:slug/:channel` | delivery apps | HMAC-signed order delivery |
 
-Collections and role rules are defined in `POLICY` at the top of `cloud.js`.
+Collections and role rules are defined in `POLICY` at the top of `cloud.js`. The business type chosen at sign-up limits both the **staff roles** you can create (`ROLE_SETS`) and which **collections exist** (`NO_COLLECTIONS`); the session endpoint returns `tenant.businessType`, the allowed `roles` and the per-collection permissions.
 
 ## Tests
-`node` scripts in the repo history exercise 105 security checks (tenant isolation, CSRF, lockout, 2FA, RBAC, append-only, injection attempts, webhooks, storefront). Run them before every release.
+`npm test` (suite `tests/cloud.test.js`) exercises 127 security checks (tenant isolation, CSRF, lockout, 2FA, RBAC, append-only, injection attempts, webhooks, storefront). Run them before every release.
 
 ## Status
 Foundation only: the POS web app does not use this server yet. See `SECURITY.md` → "Not done yet".

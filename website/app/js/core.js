@@ -61,6 +61,8 @@ function save(){
   catch(e){ if(typeof toast==='function')toast('Could not save: browser storage is full or blocked.','err') }
 }
 function migrate(){ DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0};
+  if(DB.settings.blockExpired===undefined)DB.settings.blockExpired=true;
+  if(!DB.settings.businessType)DB.settings.businessType='restaurant';
   if(typeof ensureAccounts==='function')ensureAccounts();
   if(typeof ensureEinv==='function')ensureEinv();
   DB.online=DB.online||[]; DB.itemMap=DB.itemMap||{}; DB.channels=DB.channels||{}; }
@@ -119,8 +121,8 @@ function seed(type){
 
 /* ---------- auth & permissions ---------- */
 const PERMS={
-  admin:['dashboard','catalog','stock','guests','promos','team','outlets','orders','reports','settings','register','refund','discount_override','voucher','accounts','kitchen','online'],
-  manager:['dashboard','catalog','stock','guests','promos','outlets','orders','reports','register','refund','discount_override','voucher','kitchen','online'],
+  admin:['dashboard','catalog','stock','guests','promos','team','outlets','orders','reports','settings','register','refund','discount_override','voucher','accounts','kitchen','online','controlled'],
+  manager:['dashboard','catalog','stock','guests','promos','outlets','orders','reports','register','refund','discount_override','voucher','kitchen','online','controlled'],
   kitchen:['kitchen'],
   accountant:['dashboard','accounts','reports','orders'],
   cashier:['register','guests','orders','online'],

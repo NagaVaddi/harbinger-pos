@@ -12,7 +12,7 @@ Harbinger will hold other people's sales, customer and accounting data, so this 
 
 > Until the Cloud connection is finished, **do not onboard real customers onto the demo**.
 
-## What the Cloud server enforces today (tested: 105 automated checks)
+## What the Cloud server enforces today (tested: 127 automated checks)
 
 **Identity & sessions**
 * Passwords: scrypt (N=32768, r=8, p=1) with a unique salt; policy (10+ chars, not common, not containing name/email). Constant-time comparison; dummy hash for unknown emails so response time does not reveal which emails exist.
@@ -25,6 +25,10 @@ Harbinger will hold other people's sales, customer and accounting data, so this 
 **Tenant isolation (many owners, one deployment)**
 * The tenant comes from the authenticated **session**, never from anything the client sends. Every query is parameterised and tenant-scoped; ids from other tenants look like "not found".
 * Tested: tenant B cannot read, overwrite, list, reset or message anything of tenant A (records, users, audit log, storefront, tracking codes, webhooks).
+
+**Business type decides access (enforced on the server)**
+* The owner picks a business type at sign-up (restaurant, supermarket, retail, pharmacy, clinic, salon). It fixes which **staff roles** can exist (e.g. a pharmacy can create pharmacists and store keepers but not waiters; a clinic can create billing clerks but not cashiers) and which **data collections** exist at all (prescription logs only for pharmacy/clinic; providers only for clinic/salon; online ordering and storefront not for clinic/salon). A collection that does not exist for a type is refused even to the owner.
+* Role capabilities are separate per role: e.g. a store keeper can receive and count stock but cannot read customers, orders or accounts and cannot change prices or cost; a pharmacist records prescriptions (append-only) but a counter assistant cannot; kitchen staff only see orders.
 
 **Authorisation (enforced on the server, not in the UI)**
 * Per-collection read/write rules by role (owner, admin, manager, cashier, accountant, kitchen). Examples: cashiers cannot read accounting data or item cost, cannot write prices, settings or ledgers; kitchen sees orders only.

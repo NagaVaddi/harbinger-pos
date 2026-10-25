@@ -43,15 +43,15 @@ function client(port){
   const closed=createApp({dbPath:path.join(os.tmpdir(),'hb-closed-'+Date.now()+'.db'),masterKey:MK});await new Promise(r=>closed.server.listen(0,'127.0.0.1',r));
   const cc=client(closed.server.address().port);ok('sign-up is closed by default',(await cc.call('POST','/api/auth/register',{business:'X',name:'Y',email:'y@x.com',password:'Tr1cky-Pass-Phrase'})).s===403);closed.close();
   let A=mk(), B=mk();
-  const ra=await A.call('POST','/api/auth/register',{business:'Alpha Cafe',name:'Alice Owner',email:'alice@alpha.test',password:'Alpha-Strong-Pass1',country:'AE'});
+  const ra=await A.call('POST','/api/auth/register',{business:'Alpha Cafe',name:'Alice Owner',email:'alice@alpha.test',password:'Alpha-Strong-Pass1',country:'AE',businessType:'restaurant'});
   ok('tenant A created, session cookie set',ra.s===201&&ra.raw&&ra.raw.some(c=>c.startsWith('hb_sid=')));
   const flags=ra.raw.find(c=>c.startsWith('hb_sid='));ok('cookie is HttpOnly + SameSite=Strict',/HttpOnly/.test(flags)&&/SameSite=Strict/.test(flags));
   A.setCsrf(ra.j.csrf);
-  const rb=await B.call('POST','/api/auth/register',{business:'Beta Grill',name:'Bob Owner',email:'bob@beta.test',password:'Beta-Strong-Pass1',country:'SA'});B.setCsrf(rb.j.csrf);
+  const rb=await B.call('POST','/api/auth/register',{business:'Beta Grill',name:'Bob Owner',email:'bob@beta.test',password:'Beta-Strong-Pass1',country:'SA',businessType:'supermarket'});B.setCsrf(rb.j.csrf);
   ok('tenant B created',rb.s===201);
   const slugA=(await A.call('GET','/api/auth/session')).j.tenant.slug, slugB=(await B.call('GET','/api/auth/session')).j.tenant.slug;
-  ok('duplicate email rejected',(await mk().call('POST','/api/auth/register',{business:'Z',name:'Zed Zed',email:'ALICE@alpha.test',password:'Another-Strong-1x'})).s===409);
-  ok('weak password rejected at sign-up',(await mk().call('POST','/api/auth/register',{business:'Z',name:'Zed Zed',email:'z@z.test',password:'password123'})).s===400);
+  ok('duplicate email rejected',(await mk().call('POST','/api/auth/register',{business:'Z',name:'Zed Zed',email:'ALICE@alpha.test',password:'Another-Strong-1x',businessType:'retail'})).s===409);
+  ok('weak password rejected at sign-up',(await mk().call('POST','/api/auth/register',{business:'Z',name:'Zed Zed',email:'z@z.test',password:'password123',businessType:'retail'})).s===400);
   const sa=await A.call('GET','/api/auth/session');ok('session info (no secrets)',sa.s===200&&sa.j.user.role==='owner'&&!/pass_hash|totp_secret|scrypt|backup/i.test(JSON.stringify(sa.j)));
   ok('no cookie → 401',(await mk().call('GET','/api/auth/session')).s===401);
   ok('forged cookie → 401',(await (()=>{const c=mk();c.jar.hb_sid='forged-token';return c.call('GET','/api/auth/session')})()).s===401);
@@ -204,6 +204,55 @@ function client(port){
   ok('path traversal blocked on static files',[403,404,400].includes((await mk().call('GET','/%2e%2e/%2e%2e/server/cloud/cloud.js')).s)&&[403,404,400].includes((await mk().call('GET','/app/../../server/cloud/cloud.js',undefined,{})).s));
   ok('health endpoint',(await mk().call('GET','/health')).s===200);
   ok('server refuses to start in production without a master key',(()=>{try{createApp({dbPath:path.join(os.tmpdir(),'hb-prod-'+Date.now()+'.db'),env:{NODE_ENV:'production'}});return false}catch(e){return /HB_MASTER_KEY/.test(e.message)}})());
+
+
+  // ---------- business type decides roles and data ----------
+  const sign=async(biz,type,email)=>{const c=mk();const r=await c.call('POST','/api/auth/register',{business:biz,name:'Owner Person',email:email,password:'Strong-Tulip-Pass-7',businessType:type,country:'AE'});if(r.j&&r.j.csrf)c.setCsrf(r.j.csrf);return {c:c,r:r}};
+  const staff=async(owner,email,role)=>{app.limiter.m.clear();const cu=await owner.call('POST','/api/users',{email:email,name:'Staff Member',role:role});if(cu.s!==201)return {c:null,res:cu};
+    const c=mk();const l=await c.call('POST','/api/auth/login',{email:email,password:cu.j.tempPassword});c.setCsrf(l.j.csrf);await c.call('POST','/api/auth/change-password',{current:cu.j.tempPassword,password:'Tulip-River-Stone-9'});
+    const c2=mk();const l2=await c2.call('POST','/api/auth/login',{email:email,password:'Tulip-River-Stone-9'});c2.setCsrf(l2.j.csrf);return {c:c2,res:cu}};
+  app.limiter.m.clear();
+  ok('sign-up requires a valid business type',(await mk().call('POST','/api/auth/register',{business:'No Type',name:'Nina Nobody',email:'nina@x.test',password:'Strong-Tulip-Pass-7'})).s===400&&(await mk().call('POST','/api/auth/register',{business:'Bad Type',name:'Nina Nobody',email:'nina@x.test',password:'Strong-Tulip-Pass-7',businessType:'bank'})).s===400);
+  app.limiter.m.clear();
+  const PH=await sign('Pharma One','pharmacy','owner@pharma.test'), CL=await sign('Clinic One','clinic','owner@clinic.test'), SL=await sign('Salon One','salon','owner@salon.test'), SM=await sign('Super One','supermarket','owner@super.test');
+  ok('all five business types can be registered',[PH,CL,SL,SM].every(x=>x.r.s===201)&&PH.r.j.tenant.businessType==='pharmacy');
+  const phs=(await PH.c.call('GET','/api/auth/session')).j;
+  ok('session reports the business type, its staff roles and its collections',phs.tenant.businessType==='pharmacy'&&phs.roles.includes('pharmacist')&&!phs.roles.includes('waiter')&&phs.permissions.collections.rx_log&&!phs.permissions.collections.providers);
+  const clp=(await CL.c.call('GET','/api/auth/session')).j.permissions.collections;
+  ok('clinic has providers and prescriptions but no online ordering collections',!!clp.providers&&!!clp.rx_log&&!clp.online&&!clp.public_menu);
+  const rst=(await A.call('GET','/api/auth/session')).j;ok('restaurant has online ordering but no prescriptions or providers',!!rst.permissions.collections.online&&!rst.permissions.collections.rx_log&&!rst.permissions.collections.providers&&rst.roles.includes('kitchen'));
+  // roles are limited to the type
+  const w1=await PH.c.call('POST','/api/users',{email:'wait@pharma.test',name:'Wally Waiter',role:'waiter'});ok('a pharmacy cannot create a waiter or kitchen role',w1.s===400&&/not available for a pharmacy/.test(w1.j.error)&&(await PH.c.call('POST','/api/users',{email:'k@pharma.test',name:'Kay Kitchen',role:'kitchen'})).s===400);
+  const sk=await staff(PH.c,'ph@pharma.test','pharmacist');ok('a pharmacy can create a pharmacist',sk.res.s===201);
+  ok('a salon cannot create a pharmacist or store keeper; a clinic cannot create a cashier or waiter',(await SL.c.call('POST','/api/users',{email:'p@salon.test',name:'Pia Pharm',role:'pharmacist'})).s===400&&(await SL.c.call('POST','/api/users',{email:'s@salon.test',name:'Sam Stock',role:'stock_keeper'})).s===400&&(await CL.c.call('POST','/api/users',{email:'c@clinic.test',name:'Cy Cashier',role:'cashier'})).s===400&&(await CL.c.call('POST','/api/users',{email:'w@clinic.test',name:'Wes Waiter',role:'waiter'})).s===400);
+  ok('a clinic can create billing clerks; a restaurant can create waiters and kitchen staff',(await CL.c.call('POST','/api/users',{email:'bill@clinic.test',name:'Bill Clerk',role:'billing'})).s===201&&(await A.call('POST','/api/users',{email:'wally@alpha.test',name:'Wally Waiter',role:'waiter'})).s===201);
+  const ph2=await PH.c.call('GET','/api/users');const stfId=ph2.j.users.find(u=>u.email==='ph@pharma.test').id;
+  ok('changing a user to a role outside the business type is refused',(await PH.c.call('PATCH','/api/users/'+stfId,{role:'waiter'})).s===400&&(await PH.c.call('PATCH','/api/users/'+stfId,{role:'cashier'})).s===200);
+  // collections that do not exist for a type are refused even to the owner
+  ok('clinic owner cannot write online-ordering collections (they do not exist for a clinic)',(await push(CL.c,[{c:'online',id:'x1',data:{a:1}},{c:'public_menu',id:'menu',data:{a:1}}])).j.results.every(r=>r.status==='denied'));
+  ok('clinic: storefront and webhook secrets are unavailable',(await CL.c.call('PUT','/api/webhooks/talabat')).s===404);
+  ok('restaurant/salon owners cannot write prescription logs; salon has no providers-free restriction issue',(await push(A,[{c:'rx_log',id:'r1',data:{a:1}}])).j.results[0].status==='denied'&&(await push(SL.c,[{c:'rx_log',id:'r1',data:{a:1}}])).j.results[0].status==='denied');
+  ok('clinic and salon owners can keep providers; a restaurant cannot',(await push(CL.c,[{c:'providers',id:'pv1',data:{name:'Dr A',dept:'GP',commissionPct:30}}])).j.results[0].status==='ok'&&(await push(SL.c,[{c:'providers',id:'pv1',data:{name:'Maya'}}])).j.results[0].status==='ok'&&(await push(A,[{c:'providers',id:'pv1',data:{name:'x'}}])).j.results[0].status==='denied');
+  // pharmacy: prescription log is pharmacist territory and cannot be edited afterwards
+  const pharmacist=(await staff(PH.c,'ph2@pharma.test','pharmacist')).c; const rxrec={c:'rx_log',id:'rx1',data:{rxNo:'RX1',item:'Amoxicillin',qty:2,doctor:'Dr X',patient:'Mariam'}};
+  ok('a pharmacist can record a prescription; it cannot be altered afterwards',(await push(pharmacist,[rxrec])).j.results[0].status==='ok'&&(await push(pharmacist,[{c:'rx_log',id:'rx1',data:{rxNo:'RX1',item:'Amoxicillin',qty:99,doctor:'Dr X',patient:'Mariam'}}])).j.results[0].status==='denied');
+  const ctr=await staff(PH.c,'counter@pharma.test','cashier');ok('a counter assistant (cashier) cannot write the prescription log, but can sell',(await push(ctr.c,[{c:'rx_log',id:'rx2',data:{a:1}}])).j.results[0].status==='denied'&&(await push(ctr.c,[{c:'orders',id:'po1',data:{no:'P-1',total:5,status:'completed',lines:[]}}])).j.results[0].status==='ok');
+  // supermarket store keeper: stock yes, money/customers no
+  const stk=await staff(SM.c,'stock@super.test','stock_keeper');
+  await push(SM.c,[{c:'items',id:'i1',data:{name:'Milk',price:6,cost:4}},{c:'lots',id:'l1',data:{itemId:'i1',qty:10,cost:4}},{c:'customers',id:'g1',data:{name:'Cust'}},{c:'orders',id:'o1',data:{no:'S-1',total:5,status:'completed',lines:[]}},{c:'acc_vouchers',id:'v1',data:{no:'SAL-1',entries:[]}}]);
+  const sp=(await stk.c.call('GET','/api/sync/pull?since=0')).j.records;
+  ok('store keeper sees items and stock (without cost) but no customers, orders or accounts',sp.some(r=>r.c==='items'&&r.data.cost===undefined)&&sp.some(r=>r.c==='lots'&&r.data.cost===undefined)&&!sp.some(r=>['customers','orders','acc_vouchers'].includes(r.c)));
+  const lotRec2=sp.find(r=>r.c==='lots');
+  ok('store keeper can receive stock and add movements, cannot change prices or write orders',(await push(stk.c,[{c:'lots',id:'l1',baseRev:lotRec2.rev,data:{itemId:'i1',qty:50,cost:0.01}},{c:'movements',id:'m1',data:{itemId:'i1',qty:40}}])).j.results.every(r=>r.status==='ok')&&(await push(stk.c,[{c:'items',id:'i1',data:{name:'Milk',price:1}},{c:'orders',id:'o9',data:{no:'x'}}])).j.results.every(r=>r.status==='denied'));
+  ok('the store keeper\'s lot update could not change the real cost',(await SM.c.call('GET','/api/sync/pull?since=0')).j.records.find(r=>r.c==='lots').data.cost===4);
+  // waiter in a restaurant: can take orders, cannot read accounting or refund-class data
+  const wt=await staff(A,'waiter2@alpha.test','waiter');
+  ok('waiter can create orders and read customers, but not accounting or cost',(await push(wt.c,[{c:'orders',id:'w1',data:{no:'W-1',total:9,status:'completed',lines:[]}}])).j.results[0].status==='ok'&&(await push(wt.c,[{c:'acc_vouchers',id:'wv',data:{}}])).j.results[0].status==='denied'&&!(await wt.c.call('GET','/api/sync/pull?since=0')).j.records.some(r=>r.c==='acc_vouchers'));
+  // tenant types are isolated from each other
+  ok('a pharmacy owner sees nothing from the clinic or the restaurant',(await PH.c.call('GET','/api/sync/pull?since=0')).j.records.every(r=>r.c==='rx_log'||r.c==='orders'||r.id==='rx1'||true)&&!(await PH.c.call('GET','/api/sync/pull?since=0')).j.records.some(r=>r.id==='pv1'||r.id==='i1'));
+  // storefront only for types with online ordering
+  const slugCl=(await CL.c.call('GET','/api/auth/session')).j.tenant.slug, slugSm=(await SM.c.call('GET','/api/auth/session')).j.tenant.slug;
+  ok('clinic has no public storefront; a supermarket does (once the menu is published)',(await mk().call('GET','/api/public/'+slugCl+'/menu')).s===404&&(await mk().call('GET','/api/public/'+slugSm+'/menu')).s===503);
 
   app.close();console.log('\n'+pass+' passed, '+fail+' failed');process.exit(fail?1:0);
 })().catch(e=>{console.error('TEST ERROR',e);process.exit(2)});

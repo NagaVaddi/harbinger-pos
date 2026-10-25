@@ -8,32 +8,43 @@ const S=require('./security');
 const {normalize}=require('../channels');
 
 /* ---------- roles & collection policy (enforced on the server) ---------- */
-const ROLES=['owner','admin','manager','cashier','accountant','kitchen'];
-const ALL=ROLES, STAFF=['owner','admin','manager'], FIN=['owner','admin','accountant'], SELL=['owner','admin','manager','cashier'];
+const ROLES=['owner','admin','manager','cashier','waiter','kitchen','accountant','stock_keeper','pharmacist','billing'];
+/* The business type is chosen when the account is created. It decides which staff roles can exist and which data collections exist at all. */
+const BIZ_TYPES=['restaurant','supermarket','retail','pharmacy','clinic','salon'];
+const ROLE_SETS={restaurant:['admin','manager','cashier','waiter','kitchen','accountant'],supermarket:['admin','manager','cashier','stock_keeper','accountant'],retail:['admin','manager','cashier','stock_keeper','accountant'],
+  pharmacy:['admin','manager','pharmacist','cashier','stock_keeper','accountant'],clinic:['admin','manager','billing','pharmacist','stock_keeper','accountant'],salon:['admin','manager','cashier','accountant']};
+const NO_COLLECTIONS={ /* collections that do not exist for a type */
+  restaurant:['rx_log','providers'],supermarket:['rx_log','providers'],retail:['rx_log','providers'],pharmacy:['providers'],clinic:['online','public_menu'],salon:['rx_log','online','public_menu']};
+const allowedRoles=type=>['owner'].concat(ROLE_SETS[type]||[]);
+const ALL=ROLES, STAFF=['owner','admin','manager'], FIN=['owner','admin','accountant'];
+const SELL=['owner','admin','manager','cashier','waiter','pharmacist','billing'], STOCK=['owner','admin','manager','stock_keeper','pharmacist'], SELLSTOCK=SELL.concat(['stock_keeper']);
 const COSTROLES=['owner','admin','manager','accountant'];
 const POLICY={
   settings:{read:ALL,write:['owner','admin']},
   items:{read:ALL,write:STAFF,protect:{cost:COSTROLES}},
   categories:{read:ALL,write:STAFF},
-  customers:{read:['owner','admin','manager','cashier','accountant'],write:SELL},
+  customers:{read:['owner','admin','manager','cashier','waiter','accountant','pharmacist','billing'],write:SELL},
+  providers:{read:['owner','admin','manager','cashier','billing','accountant'],write:STAFF},
   offers:{read:ALL,write:STAFF}, codes:{read:SELL,write:STAFF},
   counters:{read:ALL,write:['owner','admin']},
-  sessions:{read:['owner','admin','manager','cashier','accountant'],write:SELL},
-  orders:{read:ALL,write:['owner','admin','manager','cashier','kitchen'],appendOnly:true,mutable:['status','refund','kds','settlement','einv','einvCredit','onlineId']},
-  lots:{read:['owner','admin','manager','cashier','accountant'],write:SELL,protect:{cost:COSTROLES}},
-  movements:{read:['owner','admin','manager','cashier','accountant'],write:SELL,appendOnly:true,mutable:[],protect:{}},
-  cash_vouchers:{read:['owner','admin','manager','cashier','accountant'],write:SELL,appendOnly:true,mutable:[]},
-  suppliers:{read:['owner','admin','manager','accountant'],write:['owner','admin','manager']},
-  purchase_orders:{read:['owner','admin','manager','accountant'],write:['owner','admin','manager']},
+  sessions:{read:['owner','admin','manager','cashier','accountant','pharmacist','billing'],write:SELL},
+  orders:{read:['owner','admin','manager','cashier','waiter','kitchen','accountant','pharmacist','billing'],write:['owner','admin','manager','cashier','waiter','kitchen','pharmacist','billing'],appendOnly:true,mutable:['status','refund','kds','settlement','einv','einvCredit','onlineId']},
+  lots:{read:['owner','admin','manager','cashier','accountant','stock_keeper','pharmacist','billing'],write:SELLSTOCK,protect:{cost:COSTROLES}},
+  movements:{read:['owner','admin','manager','cashier','accountant','stock_keeper','pharmacist','billing'],write:SELLSTOCK,appendOnly:true,mutable:[],protect:{}},
+  cash_vouchers:{read:['owner','admin','manager','cashier','accountant','pharmacist','billing'],write:SELL,appendOnly:true,mutable:[]},
+  suppliers:{read:['owner','admin','manager','accountant','stock_keeper','pharmacist'],write:['owner','admin','manager','stock_keeper']},
+  purchase_orders:{read:['owner','admin','manager','accountant','stock_keeper','pharmacist'],write:['owner','admin','manager','stock_keeper']},
+  rx_log:{read:['owner','admin','manager','pharmacist','accountant'],write:['owner','admin','manager','pharmacist'],appendOnly:true,mutable:[]},
   acc_ledgers:{read:FIN,write:FIN}, acc_groups:{read:FIN,write:FIN},
   acc_vouchers:{read:FIN,write:FIN,appendOnly:true,mutable:['cancelled']},
-  online:{read:['owner','admin','manager','cashier','kitchen'],write:['owner','admin','manager','cashier'],appendOnly:true,mutable:['status','orderId','history','dirty','reason']},
+  online:{read:['owner','admin','manager','cashier','kitchen','pharmacist'],write:['owner','admin','manager','cashier','pharmacist'],appendOnly:true,mutable:['status','orderId','history','dirty','reason']},
   public_menu:{read:ALL,write:STAFF}
 };
 const MAX_RECORD=256*1024, MAX_PUSH=200, ID_RE=/^[A-Za-z0-9_.:-]{1,80}$/;
-const can=(role,coll,mode)=>!!(POLICY[coll]&&POLICY[coll][mode]&&POLICY[coll][mode].indexOf(role)>=0);
+const existsFor=(type,coll)=>!!POLICY[coll]&&((NO_COLLECTIONS[type]||[]).indexOf(coll)<0);
+const can=(role,coll,mode,type)=>!!(existsFor(type||'restaurant',coll)&&POLICY[coll][mode]&&POLICY[coll][mode].indexOf(role)>=0);
 const redact=(role,coll,data)=>{const p=POLICY[coll]&&POLICY[coll].protect;if(!p)return data;const o=Object.assign({},data);Object.keys(p).forEach(f=>{if(p[f].indexOf(role)<0)delete o[f]});return o};
-const permissions=role=>({collections:Object.keys(POLICY).reduce((o,c)=>{o[c]={read:can(role,c,'read'),write:can(role,c,'write')};return o},{}),manageUsers:['owner','admin'].indexOf(role)>=0,viewAudit:['owner','admin'].indexOf(role)>=0});
+const permissions=(role,type)=>({collections:Object.keys(POLICY).filter(c=>existsFor(type,c)).reduce((o,c)=>{o[c]={read:can(role,c,'read',type),write:can(role,c,'write',type)};return o},{}),manageUsers:['owner','admin'].indexOf(role)>=0,viewAudit:['owner','admin'].indexOf(role)>=0});
 
 /* ---------- app factory ---------- */
 function createApp(opt){
@@ -42,7 +53,7 @@ function createApp(opt){
   const dbPath=opt.dbPath||env.HB_DB||path.join(__dirname,'harbinger.db');
   const db=new DatabaseSync(dbPath); db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');
   db.exec(`
-  create table if not exists tenants(id text primary key,slug text unique not null,name text not null,country text,status text not null default 'active',created_at integer not null);
+  create table if not exists tenants(id text primary key,slug text unique not null,name text not null,country text,business_type text not null default 'restaurant',status text not null default 'active',created_at integer not null);
   create table if not exists users(id text primary key,tenant_id text not null references tenants(id),email text unique not null,name text not null,role text not null,pass_hash text not null,must_change integer not null default 0,
     totp_secret text,totp_enabled integer not null default 0,totp_last integer not null default 0,backup_codes text,failed integer not null default 0,locked_until integer not null default 0,active integer not null default 1,created_at integer not null,last_login integer);
   create index if not exists users_tenant on users(tenant_id);
@@ -57,6 +68,7 @@ function createApp(opt){
   create table if not exists webhook_secrets(tenant_id text not null,channel text not null,secret_enc text not null,primary key(tenant_id,channel));
   create table if not exists webhook_seen(tenant_id text not null,key text not null,ts integer not null,primary key(tenant_id,key));
   `);
+  try{db.exec("alter table tenants add column business_type text not null default 'restaurant'")}catch(e){/* column already exists */}
   let MK=opt.masterKey||S.loadMasterKey(env);
   if(!MK){
     if(prod)throw new Error('HB_MASTER_KEY is required in production (openssl rand -base64 32)');
@@ -74,7 +86,7 @@ function createApp(opt){
     userByEmail:db.prepare('select * from users where email=?'),
     userById:db.prepare('select * from users where id=? and tenant_id=?'),
     usersOfTenant:db.prepare('select id,email,name,role,active,totp_enabled,must_change,last_login,created_at from users where tenant_id=? order by created_at'),
-    sessionByHash:db.prepare('select s.*,u.email,u.name,u.role,u.active,u.must_change,u.totp_enabled,t.name tname,t.slug tslug,t.status tstatus from sessions s join users u on u.id=s.user_id join tenants t on t.id=s.tenant_id where s.id_hash=?'),
+    sessionByHash:db.prepare('select s.*,u.email,u.name,u.role,u.active,u.must_change,u.totp_enabled,t.name tname,t.slug tslug,t.business_type tbtype,t.status tstatus from sessions s join users u on u.id=s.user_id join tenants t on t.id=s.tenant_id where s.id_hash=?'),
     audit:db.prepare('insert into audit(tenant_id,user_id,action,detail,ip,ts) values (?,?,?,?,?,?)')
   };
   const now=()=>Date.now();
@@ -119,27 +131,28 @@ function createApp(opt){
     const t=now();
     if(t>s.expires_at||t-s.last_seen>cfg.idleMs||!s.active||s.tstatus!=='active'){db.prepare('delete from sessions where id_hash=?').run(s.id_hash);return null}
     if(t-s.last_seen>60e3)db.prepare('update sessions set last_seen=? where id_hash=?').run(t,s.id_hash);
-    return {sid:s.id_hash,uid:s.user_id,tid:s.tenant_id,role:s.role,email:s.email,name:s.name,csrf:s.csrf,mustChange:!!s.must_change,tenant:{name:s.tname,slug:s.tslug},twofa:!!s.totp_enabled};
+    return {sid:s.id_hash,uid:s.user_id,tid:s.tenant_id,role:s.role,email:s.email,name:s.name,csrf:s.csrf,mustChange:!!s.must_change,type:s.tbtype,tenant:{name:s.tname,slug:s.tslug,businessType:s.tbtype},twofa:!!s.totp_enabled};
   }
-  const sessionInfo=a=>({user:{id:a.uid,email:a.email,name:a.name,role:a.role,twofa:a.twofa,mustChangePassword:a.mustChange},tenant:a.tenant,csrf:a.csrf,permissions:permissions(a.role)});
+  const sessionInfo=a=>({user:{id:a.uid,email:a.email,name:a.name,role:a.role,twofa:a.twofa,mustChangePassword:a.mustChange},tenant:a.tenant,csrf:a.csrf,roles:ROLE_SETS[a.type]||[],permissions:permissions(a.role,a.type)});
 
   /* ---------- auth handlers ---------- */
   async function register(req,res,ip){
     if(!cfg.allowSignup)return send(res,403,{error:'Sign-up is closed. Ask the operator for an invitation.'});
     if(lim.hit('reg|'+ip,5,3600e3))return send(res,429,{error:'Too many sign-ups from this address.'});
-    const b=await jsonBody(req), email=str(b.email,254).toLowerCase(), name=str(b.name,80), biz=str(b.business,80), country=str(b.country,3).toUpperCase();
+    const b=await jsonBody(req), email=str(b.email,254).toLowerCase(), name=str(b.name,80), biz=str(b.business,80), country=str(b.country,3).toUpperCase(), btype=String(b.businessType||'');
     if(!emailOk(email)||!name||!biz)return send(res,400,{error:'Business name, your name and a valid email are required.'});
+    if(BIZ_TYPES.indexOf(btype)<0)return send(res,400,{error:'Choose your business type: '+BIZ_TYPES.join(', ')+'.'});
     const pp=S.passwordProblem(b.password,{email:email,name:name}); if(pp)return send(res,400,{error:pp});
     if(q.userByEmail.get(email))return send(res,409,{error:'An account with that email already exists.'});
     const hash=await S.hashPassword(b.password), tid=S.newId('t'), uid=S.newId('u'); let slug=slugify(biz);
     tx(()=>{
       if(db.prepare('select 1 from tenants where slug=?').get(slug))slug=slug+'-'+crypto.randomBytes(2).toString('hex');
-      db.prepare('insert into tenants(id,slug,name,country,created_at) values (?,?,?,?,?)').run(tid,slug,biz,country||null,now());
+      db.prepare('insert into tenants(id,slug,name,country,business_type,created_at) values (?,?,?,?,?,?)').run(tid,slug,biz,country||null,btype,now());
       db.prepare('insert into users(id,tenant_id,email,name,role,pass_hash,created_at) values (?,?,?,?,?,?,?)').run(uid,tid,email,name,'owner',hash,now());
     });
     audit(tid,uid,'tenant.create',biz,ip);
     const user={id:uid,tenant_id:tid}, csrf=createSession(req,res,user);
-    return send(res,201,{ok:true,csrf:csrf,tenant:{name:biz,slug:slug}},{'Set-Cookie':res._cookies});
+    return send(res,201,{ok:true,csrf:csrf,tenant:{name:biz,slug:slug,businessType:btype},roles:ROLE_SETS[btype]},{'Set-Cookie':res._cookies});
   }
   async function login(req,res,ip){
     const b=await jsonBody(req), email=str(b.email,254).toLowerCase();
@@ -174,7 +187,7 @@ function createApp(opt){
   /* ---------- record sync (tenant-isolated, role-checked) ---------- */
   function pull(a,url){
     const since=Math.max(0,parseInt(url.searchParams.get('since'))||0), limit=Math.min(500,Math.max(1,parseInt(url.searchParams.get('limit'))||300));
-    const colls=Object.keys(POLICY).filter(c=>can(a.role,c,'read')); if(!colls.length)return {records:[],cursor:since,more:false};
+    const colls=Object.keys(POLICY).filter(c=>can(a.role,c,'read',a.type)); if(!colls.length)return {records:[],cursor:since,more:false};
     const rows=db.prepare('select coll,id,rev,deleted,data,seq from records where tenant_id=? and seq>? and coll in ('+colls.map(()=>'?').join(',')+') order by seq limit ?').all(a.tid,since,...colls,limit+1);
     const more=rows.length>limit; if(more)rows.pop();
     return {records:rows.map(r=>({c:r.coll,id:r.id,rev:r.rev,deleted:!!r.deleted,data:r.deleted?null:redact(a.role,r.coll,JSON.parse(r.data))})),cursor:rows.length?rows[rows.length-1].seq:since,more:more};
@@ -182,7 +195,7 @@ function createApp(opt){
   function applyRecord(a,r){
     if(!r||typeof r!=='object')return {status:'invalid'};
     const c=r.c, id=r.id; if(!POLICY[c]||typeof id!=='string'||!ID_RE.test(id))return {c:c,id:id,status:'invalid'};
-    if(!can(a.role,c,'write')){audit(a.tid,a.uid,'sync.denied',c+'/'+id,null);return {c:c,id:id,status:'denied'}}
+    if(!can(a.role,c,'write',a.type)){audit(a.tid,a.uid,'sync.denied',c+'/'+id,null);return {c:c,id:id,status:'denied'}}
     const pol=POLICY[c], cur=db.prepare('select rev,deleted,data from records where tenant_id=? and coll=? and id=?').get(a.tid,c,id);
     const del=!!r.deleted; let data=null;
     if(!del){
@@ -233,7 +246,7 @@ function createApp(opt){
   async function publicRoutes(req,res,url,ip){
     const m=url.pathname.match(/^\/api\/public\/([a-z0-9-]{1,40})\/(menu|orders)(?:\/([A-Za-z0-9]{4,12}))?$/); if(!m)return send(res,404,{error:'Not found'});
     if(lim.hit('pub|'+ip,240,60e3))return send(res,429,{error:'Too many requests'});
-    const t=q.tenantBySlug.get(m[1]); if(!t)return send(res,404,{error:'Not found'});
+    const t=q.tenantBySlug.get(m[1]); if(!t||!existsFor(t.business_type,'online'))return send(res,404,{error:'Not found'});
     if(req.method==='GET'&&m[2]==='menu'){const menu=pubMenu(t.id);return menu?send(res,200,menu):send(res,503,{error:'Menu not published yet'})}
     if(req.method==='POST'&&m[2]==='orders'&&!m[3]){
       if(lim.hit('pubtry|'+ip,60,600e3))return send(res,429,{error:'Too many requests. Please try again later.'});
@@ -308,6 +321,7 @@ function createApp(opt){
       if(['owner','admin'].indexOf(a.role)<0)return send(res,403,{error:'Not allowed'});
       const b=await jsonBody(req), email=str(b.email,254).toLowerCase(), name=str(b.name,80), role=b.role;
       if(!emailOk(email)||!name||ROLES.indexOf(role)<0)return send(res,400,{error:'Name, valid email and role are required.'});
+      if(allowedRoles(a.type).indexOf(role)<0)return send(res,400,{error:'The role "'+role+'" is not available for a '+a.type+' business. Available: '+ROLE_SETS[a.type].join(', ')+'.'});
       if((role==='owner'||role==='admin')&&a.role!=='owner')return send(res,403,{error:'Only the owner can create owners or admins.'});
       if(q.userByEmail.get(email))return send(res,409,{error:'That email is already registered.'});
       const temp=crypto.randomBytes(9).toString('base64url')+'a1', uid=S.newId('u');
@@ -322,7 +336,7 @@ function createApp(opt){
       if(um[2]&&M==='POST'){const temp=crypto.randomBytes(9).toString('base64url')+'a1';db.prepare('update users set pass_hash=?,must_change=1,failed=0,locked_until=0 where id=?').run(await S.hashPassword(temp),u.id);db.prepare('delete from sessions where user_id=?').run(u.id);audit(a.tid,a.uid,'user.reset_password',u.email,ip);return send(res,200,{tempPassword:temp})}
       if(!um[2]&&M==='PATCH'){
         const b=await jsonBody(req), upd={};
-        if(b.role!==undefined){if(ROLES.indexOf(b.role)<0)return send(res,400,{error:'Unknown role'});if((b.role==='owner'||b.role==='admin'||u.role==='owner')&&a.role!=='owner')return send(res,403,{error:'Only the owner can change owner/admin roles.'});upd.role=b.role}
+        if(b.role!==undefined){if(ROLES.indexOf(b.role)<0)return send(res,400,{error:'Unknown role'});if(b.role!=='owner'&&allowedRoles(a.type).indexOf(b.role)<0)return send(res,400,{error:'The role "'+b.role+'" is not available for a '+a.type+' business.'});if((b.role==='owner'||b.role==='admin'||u.role==='owner')&&a.role!=='owner')return send(res,403,{error:'Only the owner can change owner/admin roles.'});upd.role=b.role}
         if(b.active!==undefined){if(u.id===a.uid&&!b.active)return send(res,400,{error:'You cannot disable your own account.'});upd.active=b.active?1:0}
         if(b.name!==undefined)upd.name=str(b.name,80);
         const owners=db.prepare('select count(*) c from users where tenant_id=? and role=\'owner\' and active=1').get(a.tid).c;
@@ -335,6 +349,7 @@ function createApp(opt){
       return send(res,200,{events:db.prepare('select id,user_id,action,detail,ip,ts from audit where tenant_id=? order by id desc limit ?').all(a.tid,Math.min(500,parseInt(url.searchParams.get('limit'))||100))})}
     if(p.startsWith('/api/webhooks/')&&M==='PUT'){
       if(['owner','admin'].indexOf(a.role)<0)return send(res,403,{error:'Not allowed'});
+      if(!existsFor(a.type,'online'))return send(res,404,{error:'Online ordering is not available for this business type.'});
       const ch=p.slice(14); if(!/^[a-z0-9_-]{2,20}$/.test(ch))return send(res,400,{error:'Bad channel'});
       const secret=crypto.randomBytes(32).toString('hex');db.prepare('insert or replace into webhook_secrets(tenant_id,channel,secret_enc) values (?,?,?)').run(a.tid,ch,S.encrypt(MK,secret,a.tid+'|'+ch));
       audit(a.tid,a.uid,'webhook.rotate',ch,ip);return send(res,200,{channel:ch,secret:secret,url:'/webhooks/'+a.tenant.slug+'/'+ch});
@@ -378,7 +393,7 @@ function createApp(opt){
   const hk=setInterval(()=>{try{db.prepare('delete from sessions where expires_at<?').run(now());db.prepare('delete from webhook_seen where ts<?').run(now()-7*864e5)}catch(e){}},600e3);hk.unref();
   return {server,db,config:cfg,limiter:lim,close:()=>{clearInterval(hk);try{server.close()}catch(e){}try{db.close()}catch(e){}}};
 }
-module.exports={createApp,POLICY,ROLES,permissions};
+module.exports={createApp,POLICY,ROLES,ROLE_SETS,BIZ_TYPES,permissions,existsFor};
 if(require.main===module){
   const app=createApp(), port=+process.env.PORT||8788, host=process.env.HOST||'127.0.0.1';
   app.server.listen(port,host,()=>{console.log('Harbinger Cloud on http://'+host+':'+port+'  (sign-up '+(app.config.allowSignup?'OPEN':'closed')+')');if(host==='127.0.0.1')console.log('Local only. Put it behind HTTPS and set HOST/TRUST_PROXY for real use.')});

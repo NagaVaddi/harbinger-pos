@@ -4,7 +4,7 @@ global.localStorage={_d:{},getItem(k){return this._d[k]||null},setItem(k,v){this
 global.document={addEventListener(){},querySelector(){return null},querySelectorAll(){return[]}};
 global.window={addEventListener(){},open(){}};global.location={hash:''};global.matchMedia=()=>({matches:false});global.render=()=>{};
 // ROUTES lives in main.js (needs DOM at load) — stub minimal
-const src=['vendor/qrcode','core','ui','regions','console','accounts','einvoice','insights','dashboard','online','register'].map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
+const src=['vendor/qrcode','core','ui','regions','business','vertical','console','accounts','einvoice','insights','dashboard','online','register'].map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
 const names='load,R,completeSale,computeTotals,reorderRows,expiryRisk,riskAlerts,menuEng,guestStats,briefing,vKitchen,vReorder,vRisk,vMenuEng,vHourly,vSegments,vAccounts,vDashboard,vGuests,vStock,vReports,vSettings,palItems,waLink,receiptText,ticketMargin,minMargin,marginLine,kdsTickets,sessionStats,postRefund,returnStock,balMap,LID,A,regReset,itemForm,vTeam'.split(',');
 const run=new Function(src+';modal=function(){return null};toast=function(){};ROUTES={dashboard:{perm:"dashboard",label:"Command Center"},catalog:{perm:"catalog",label:"Catalog"},accounts:{perm:"accounts",label:"Accounts"}};return {'+names.join(',')+',get DB(){return DB},setME(u){ME=u}};');
 const m=run();m.load();const DB=m.DB;m.setME(DB.users[0]);
