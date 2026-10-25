@@ -20,6 +20,12 @@ Cloud point-of-sale and franchise control platform for restaurants and retail in
 ## Countries
 Profiles for UAE, KSA, Bahrain, Oman, Kuwait, Qatar, plus Egypt, Jordan, UK, India, US and a custom option: currency, decimals (BHD/OMR/KWD use 3), tax rate/label, WhatsApp dial code, e-invoicing region. Optional service charge / municipality fees. Rates and rules change — confirm with your tax authority.
 
+## Security
+See [SECURITY.md](SECURITY.md). **The public demo is not safe for real data.** `server/cloud/` is a multi-tenant API (real accounts, 2FA, tenant isolation, server-side permissions, audit log) with 105 automated security checks; connecting the POS front-end to it is the next milestone.
+
+## Tests
+`npm install && npm test` runs all suites (cloud security, gateway, accounting, intelligence, dashboard, regions, online) — 320 checks. Node 22.5+.
+
 ## Before real use
 * Replace browser storage with a server database and real user accounts (passwords are only hashed client-side in the demo).
 * ZATCA Phase 2 / UAE e-invoicing submission and delivery-app APIs (Talabat, Deliveroo, …) need partner credentials and server-side code; the app produces drafts and a QR code only.

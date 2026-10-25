@@ -254,3 +254,20 @@ th,.tile,.pick,.pal-i{text-align:start}th.r,td.r,.r{text-align:end}
 :root[data-mode="dark"] .lbrand svg{color:#fff}
 @media (prefers-color-scheme:dark){:root[data-mode="auto"] .lbrand svg{color:#fff}}
 .sb svg,.mk{color:#fff}
+
+/* dashboard */
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+@media (max-width:1000px){.cols3{grid-template-columns:1fr}}
+.dks{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.kpi.dk{position:relative;overflow:hidden;color:var(--text)}
+.kpi.dk strong{font-size:22px}
+.spark{position:absolute;inset-inline-end:10px;top:12px;width:70px;height:26px;color:var(--brand);opacity:.7}
+.rng{width:auto;display:inline-flex}.rng .seg{padding:8px 14px;white-space:nowrap}
+.chart .line{stroke:var(--brand);stroke-width:2.5}.chart .area{fill:color-mix(in srgb,var(--brand) 14%,transparent)}.chart .prev{stroke:var(--muted);stroke-width:1.5;stroke-dasharray:5 4}.chart .dot{fill:var(--surface);stroke:var(--brand);stroke-width:2}
+.heat{display:grid;gap:3px;font-size:11px;color:var(--muted)}.hrow{display:grid;grid-template-columns:34px repeat(16,1fr);gap:3px;align-items:center}.hc{height:22px;border-radius:4px}.hl{font-weight:600}.hhead span{text-align:center}
+.mix{display:grid;gap:10px}.mrow{display:grid;grid-template-columns:1fr;gap:3px;font-size:13px}.mb{display:block;height:8px;border-radius:99px;background:var(--soft);overflow:hidden}.mb i{display:block;height:100%;background:var(--brand);border-radius:99px}.mv{color:var(--muted)}.ml{font-weight:600}
+.opsl{list-style:none;display:grid;gap:2px}.opsl li{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:9px 0;border-bottom:1px solid var(--line);align-items:baseline}.opsl li:last-child{border:0}.opsl li small{grid-column:1/-1;font-size:12px}.opsl b{font-family:Montserrat;font-size:16px}
+.emptycard{border:2px dashed var(--line);box-shadow:none;margin-bottom:16px}
+
+.warnbox{background:#FFF3CD;color:#6b4e00;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+:root[data-mode="dark"] .warnbox{background:#3b2f06;color:#ffe08a}

@@ -4,6 +4,10 @@
 !/README.md
 !/website/
 !/server/
+!/tests/
+!/package.json
+!/package-lock.json
+!/SECURITY.md
 !/POS_Harbinger_Original_Product_Spec.md
 # never commit runtime data or secrets, even inside allowed folders
 server/data.json
@@ -14,3 +18,6 @@ server/data.json.tmp
 *.key
 *firebase-adminsdk*.json
 node_modules/
+server/cloud/*.db
+server/cloud/*.db-*
+server/cloud/dev-master.key
