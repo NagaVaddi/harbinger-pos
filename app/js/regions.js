@@ -48,10 +48,14 @@ const AR={
   'TAX INVOICE':'فاتورة ضريبية','RECEIPT':'إيصال','VAT':'ضريبة القيمة المضافة','GST':'ضريبة السلع والخدمات','Cashier':'الكاشير','Guest':'العميل','Table':'طاولة','Points earned':'النقاط المكتسبة','redeemed':'المستبدلة',
   'Tax registration no.':'الرقم الضريبي','REFUNDED':'مسترجع','Thank you':'شكراً لزيارتكم',
   'New':'جديد','Preparing':'قيد التحضير','Ready':'جاهز','Served':'تم التقديم','Start':'ابدأ','Harbinger Kitchen':'مطبخ هاربنجر','open ticket(s)':'طلب مفتوح','Recall last served':'استرجاع آخر طلب',
-  'Service charge':'رسوم الخدمة'
+  'Service charge':'رسوم الخدمة',
+  'Customers':'العملاء','Patients':'المرضى','Clients':'العملاء','+ Customer':'+ عميل','+ Patient':'+ مريض','+ Client':'+ عميل','Customer':'العميل','Patient':'المريض','Client':'العميل',
+  'In-store':'داخل المتجر','Home delivery':'توصيل منزلي','Products':'المنتجات','Inventory':'المخزون','Inpatient':'مريض داخلي','Outpatient':'مريض خارجي','Bills':'الفواتير','Collect':'تحصيل','Open billing':'فتح الفوترة',
+  'Pharmacy stock':'مخزون الصيدلية','Pharmacy & supplies':'الصيدلية والمستلزمات','Appointment':'موعد','Walk-in':'بدون موعد','Services & items':'الخدمات والأصناف','Services & products':'الخدمات والمنتجات','Medicines & products':'الأدوية والمنتجات',
+  'Over the counter':'بدون وصفة','Home visit':'زيارة منزلية','Harbinger Billing':'فوترة هاربنجر','Harbinger Salon POS':'نقطة بيع هاربنجر للصالون'
 };
 let LANG='en'; try{LANG=localStorage.getItem('hb_lang')==='ar'?'ar':'en'}catch(e){}
-const tr=s=>LANG==='ar'&&AR[s]?AR[s]:s;
+const tr=s=>{if(typeof bizTerm==='function'){const t=bizTerm(s);if(t)s=t}return LANG==='ar'&&AR[s]?AR[s]:s};
 const dn=it=>LANG==='ar'&&it&&it.nameAr?it.nameAr:(it?it.name:'');
 const rLang=()=>(DB&&DB.settings.receiptLang)||'en';
 const rt=s=>{const m=rLang();return m==='ar'?(AR[s]||s):(m==='both'&&AR[s]?s+' / '+AR[s]:s)};
