@@ -3,7 +3,7 @@
 
 const R={cat:'all',q:'',cart:[],type:'takeaway',table:'',customerId:null,code:null,manual:null,redeem:0,sessionId:null};
 const VOUCHER_LIMIT=100; // cashiers need a manager PIN above this
-function regReset(){R.provider='';R.cart=[];R.type='takeaway';R.table='';R.customerId=null;R.code=null;R.manual=null;R.redeem=0;R.marginOk=false}
+function regReset(){R.provider='';R.cart=[];R.type='takeaway';R.table='';R.customerId=null;R.code=null;R.manual=null;R.redeem=0;R.marginOk=false;R.jobId=null;R.vehicle=null;R.driverId=null}
 /* Profit guard: live margin on the ticket, ex-VAT, against item cost */
 const minMargin=()=>DB.settings.minMarginPct!=null?DB.settings.minMarginPct:15;
 function ticketMargin(T){
@@ -29,7 +29,7 @@ function vRegister(){
   const sess=curSession();
   if(!sess)return vOpenRegister();
   const ct=byId(DB.counters,sess.counterId), T=computeTotals(R), cu=byId(DB.customers,R.customerId);
-  const items=DB.items.filter(i=>i.active&&(R.cat==='all'||i.categoryId===R.cat)&&match(R.q,[i.name,i.nameAr,i.sku,i.barcode]));
+  const items=DB.items.filter(i=>i.active&&(R.cat==='all'||i.categoryId===R.cat)&&match(R.q,[i.name,i.nameAr,i.sku,i.barcode,i.size,i.brand]));
   const showTiles=!bm('scanFirst')||!!R.q||!!R.browse;
   const tiles=showTiles?tilesHtml(items):'<div class="scanbox"><div class="scanbig">'+tr('Scan items')+'</div><p class="muted">'+tr('Use the barcode scanner, or type a name, code or PLU.')+' <code>3*barcode</code> '+tr('adds 3.')+'</p><button type="button" class="btn ghost" data-act="r-browse">'+tr('Browse items')+'</button></div>';
   const chips=!showTiles?'':'<button type="button" class="chip'+(R.cat==='all'?' on':'')+'" data-act="r-cat" data-id="all">'+tr('All')+'</button>'+DB.categories.map(c=>'<button type="button" class="chip'+(R.cat===c.id?' on':'')+'" data-act="r-cat" data-id="'+c.id+'">'+esc(dn(c))+'</button>').join('');
@@ -47,7 +47,7 @@ function vRegister(){
   '<aside class="rt" aria-label="Current ticket"><div class="segs">'+types+'</div>'+
   (bm('tables')&&R.type==='dine-in'?'<input class="tbl-in" id="rtable" placeholder="'+esc(tr('Table / seat'))+'" maxlength="12" value="'+esc(R.table)+'" data-in="rtable" aria-label="Table">':'')+
   '<div class="gl">'+(cu?'<span class="gchip"><b>'+esc(cu.name)+'</b> · '+(bm('insurance')&&cu.insurer?esc(cu.insurer)+' · co-pay '+(cu.copay||0)+'%':cu.points+' pts')+' <button type="button" data-act="r-guest-x" aria-label="Remove guest">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-guest">'+tr('+ Guest')+'</button>')+'</div>'+
-  '<div class="lines">'+lines+'</div>'+
+  (bm('vehicle')?'<div class="gl">'+(R.vehicle?'<span class="gchip">🚗 <b>'+esc(R.vehicle.plate)+'</b> '+esc((R.vehicle.make||'')+' '+(R.vehicle.model||''))+' <button type="button" data-act="r-vehicle-x" aria-label="Remove vehicle">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-vehicle">+ Vehicle</button>')+'</div>':'')+(R.type==='delivery'&&DB.drivers.some(x=>x.active)?'<div class="gl">'+(R.driverId?'<span class="gchip">🛵 <b>'+esc((byId(DB.drivers,R.driverId)||{}).name||'')+'</b> <button type="button" data-act="r-driver-x" aria-label="Remove driver">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-driver">+ Driver</button>')+'</div>':'')+(R.jobId?'<div class="gl"><span class="gchip">Job <b>'+esc((byId(DB.jobs,R.jobId)||{}).no||'')+'</b></span></div>':'')+'<div class="lines">'+lines+'</div>'+
   '<div class="sums"><div class="tr"><span>'+tr('Subtotal')+'</span><span>'+fmt(T.subtotal)+'</span></div>'+disc+
   (T.charges||[]).map(c=>'<div class="tr"><span>'+esc(c.name)+' '+c.pct+'%</span><span>'+fmt(c.amount)+'</span></div>').join('')+
   (DB.settings.vatPct>0?'<div class="tr mut"><span>'+esc(tr(taxWord()))+' '+DB.settings.vatPct+'%'+(DB.settings.taxInclusive?' incl.':'')+'</span><span>'+fmt(T.vat)+'</span></div>':'')+
@@ -84,7 +84,7 @@ A['r-inc']=d=>{const l=byId2(d.id);if(!l)return;const it=itemById(l.itemId);if(s
 A['r-dec']=d=>{const l=byId2(d.id);if(!l)return;l.qty--;if(l.qty<=0)R.cart=R.cart.filter(x=>x!==l);render()};
 A['r-del']=d=>{R.cart=R.cart.filter(x=>x.key!==d.id);render()};
 const byId2=k=>R.cart.find(x=>x.key===k);
-A['r-note']=d=>{const l=byId2(d.id);modal({title:'Item note',body:field('Note (e.g. no onion)','note',l.note,{af:1,max:60}),enter:el=>$('.btn.primary',el).click(),actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{l.note=formData(el).note.trim();render()}}]})};
+A['r-note']=d=>{const l=byId2(d.id);modal({title:'Item note',body:field('Note (e.g. no onion)','note',l.note,{af:1,max:100})+notePresetsHtml(),onOpen:bindNotePresets,enter:el=>$('.btn.primary',el).click(),actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{l.note=formData(el).note.trim();render()}}]})};
 A['r-cat']=d=>{R.cat=d.id;render()};
 A['r-type']=d=>{R.type=d.id;if(d.id!=='dine-in')R.table='';render()};
 I.rq=el=>{R.q=el.value;render()};
@@ -164,10 +164,10 @@ function payBody(){
     '<div class="segs">'+payMethods().map(m=>'<button type="button" class="seg'+(P.method===m[0]?' on':'')+'" data-act="pay-m" data-id="'+m[0]+'">'+m[1]+'</button>').join('')+'</div>'+
     (rem>0&&P.method==='insurance'?'<label>Insurer<input id="payIns" list="insList" value="'+esc(P.insurer||insuranceDefaults(rem).insurer)+'" maxlength="60" autocomplete="off"></label><datalist id="insList">'+insurers().map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>':'')+
     (rem>0?'<div class="payrow"><input id="payAmt" type="number" step="0.01" min="0" value="'+(P.method==='insurance'?insuranceDefaults(rem).amount:rem)+'" aria-label="Amount"><button type="button" class="btn primary" data-act="pay-add">'+tr('Add payment')+'</button></div><div class="qk">'+qk+'</div>':'')+
-    (P.payments.length?'<ul class="plist">'+P.payments.map((p,i)=>'<li>'+esc(p.method.toUpperCase())+' · '+fmt(p.tendered)+(p.tendered>p.amount?' (change '+fmt(r2(p.tendered-p.amount))+')':'')+' <button type="button" class="lnk bad" data-act="pay-rm" data-id="'+i+'" aria-label="Remove payment">✕</button></li>').join('')+'</ul>':'')+
+    (P.payments.length?'<ul class="plist">'+P.payments.map((p,i)=>'<li>'+esc(p.method.toUpperCase())+' · '+fmt(p.tendered)+(p.tendered>p.amount?' (change '+fmt(r2(p.tendered-p.amount))+')':'')+(p.locked?' <span class="muted sm">(advance already paid)</span>':' <button type="button" class="lnk bad" data-act="pay-rm" data-id="'+i+'" aria-label="Remove payment">✕</button>')+'</li>').join('')+'</ul>':'')+
     '<button type="button" class="pay done" data-act="pay-done"'+(rem>0?' disabled':'')+'>'+tr('Complete sale')+'</button>';
 }
-const payMethods=()=>[['cash',tr('Cash')],['card',tr('Card')],['wallet',tr('Wallet / QR')]].concat(bm('insurance')?[['insurance','Insurance']]:[]);
+const payMethods=()=>[['cash',tr('Cash')],['card',tr('Card')],['wallet',tr('Wallet / QR')]].concat(bm('insurance')?[['insurance','Insurance']]:[],bm('credit')&&R.customerId?[['credit','On account']]:[]);
 const redrawPay=()=>{const b=$('#paybody');if(b){b.innerHTML=payBody();const a=$('#payAmt');if(a){a.focus();a.select()}}};
 A['r-pay']=()=>{
   if(!R.cart.length)return;
@@ -180,6 +180,7 @@ A['r-pay']=()=>{
   }
   if(T.total<=0){completeSale([],0);return}
   P={total:T.total,payments:[],method:'cash'};
+  const jb=R.jobId&&byId(DB.jobs,R.jobId); if(jb){const adv=Math.min(jobAdvance(jb),T.total); if(adv>0)P.payments.push({method:'advance',amount:adv,tendered:adv,locked:true})}
   modal({title:tr('Payment'),sticky:true,body:'<div id="paybody">'+payBody()+'</div>',enter:()=>A['pay-add'](),onOpen:()=>{const a=$('#payAmt');if(a){a.focus();a.select()}},actions:[{label:'Cancel'}]});
 };
 A['pay-m']=d=>{P.method=d.id;redrawPay()};
@@ -189,13 +190,15 @@ A['pay-add']=()=>{
   const amt=r2(num(a.value)), rem=r2(P.total-paidSum());
   if(amt<=0){toast('Enter an amount','err');return}
   if(P.method!=='cash'&&amt>rem){toast('Card and wallet payments cannot exceed the amount due','err');return}
+  if(P.method==='credit'){const cu=byId(DB.customers,R.customerId);if(!cu){toast('Attach the customer first','err');return}
+    const room=creditRoom(cu);if(amt>room+0.005){if(!can('discount_override')){toast('Over the credit limit ('+money(Math.max(0,room))+' available). A manager must take this sale.','err');return}audit('credit.override',cu.name+' '+money(amt)+' over limit')}}
   let ins='';if(P.method==='insurance'){ins=(($('#payIns')||{}).value||'').trim();if(!ins){toast('Choose the insurer','err');return}P.insurer=ins}
-  P.payments.push({method:P.method,amount:Math.min(amt,rem),tendered:amt,insurer:ins});redrawPay();
+  P.payments.push({method:P.method,amount:Math.min(amt,rem),tendered:amt,insurer:ins,customerId:P.method==='credit'?R.customerId:undefined});redrawPay();
 };
-A['pay-rm']=d=>{P.payments.splice(+d.id,1);redrawPay()};
+A['pay-rm']=d=>{if(P.payments[+d.id]&&P.payments[+d.id].locked)return;P.payments.splice(+d.id,1);redrawPay()};
 A['pay-done']=()=>{
   if(r2(P.total-paidSum())>0){toast('Amount still due','err');return}
-  const pays=P.payments.map(p=>({method:p.method,amount:p.amount,tendered:p.tendered,insurer:p.insurer||''}));
+  const pays=P.payments.map(p=>({method:p.method,amount:p.amount,tendered:p.tendered,insurer:p.insurer||'',customerId:p.customerId||undefined}));
   const change=r2(P.payments.reduce((a,p)=>a+(p.tendered-p.amount),0));
   closeModal(true);completeSale(pays,change);
 };
@@ -208,15 +211,15 @@ function finalizeOrder(S,sess,payments,change,extra){
   const no=ct.code+"-"+String(DB.seq.order).padStart(5,"0");
   const lines=T.lines.map(l=>{
     const allocs=l.it.track?deductStock(l.it.id,l.qty,"Sale "+no):[];
-    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0};
+    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',serial:l.serial||null,allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0};
   });
   const cu=byId(DB.customers,S.customerId), earned=cu?Math.floor(T.total*DB.settings.pointsPerAed):0;
   const usedCode=T.discounts.some(d=>d.kind==="code")?S.code:null;
   const order=Object.assign({id:uid("o"),no:no,ts:now(),counterId:sess.counterId,sessionId:sess.id,userId:ME.id,type:S.type,table:S.type==="dine-in"?S.table:"",customerId:cu?cu.id:null,lines:lines,
-    subtotal:T.subtotal,discounts:T.discounts,discountTotal:T.discountTotal,charges:T.charges,chargeTotal:T.chargeTotal,vat:T.vat,total:T.total,payments:payments,change:change,status:"completed",pointsEarned:earned,pointsRedeemed:T.redeemed,code:usedCode,kds:bm("kitchen")?{status:"new",ts:now()}:undefined,insurer:((payments.find(p=>p.method==="insurance"))||{}).insurer||"",marginPct:Math.round(ticketMargin(T).pct*10)/10},extra||{});
+    subtotal:T.subtotal,discounts:T.discounts,discountTotal:T.discountTotal,charges:T.charges,chargeTotal:T.chargeTotal,vat:T.vat,total:T.total,payments:payments,change:change,status:"completed",vehicle:S.vehicle||null,jobId:S.jobId||null,driverId:S.type==="delivery"?(S.driverId||null):null,pointsEarned:earned,pointsRedeemed:T.redeemed,code:usedCode,kds:bm("kitchen")?{status:"new",ts:now()}:undefined,insurer:((payments.find(p=>p.method==="insurance"))||{}).insurer||"",marginPct:Math.round(ticketMargin(T).pct*10)/10},extra||{});
   if(cu){cu.points=Math.max(0,cu.points-T.redeemed+earned);cu.visits++;cu.spend=r2(cu.spend+T.total)}
   if(usedCode){const c=byId(DB.codes,usedCode);if(c)c.used++}
-  DB.orders.push(order);if(typeof logRx==="function")logRx(order);postSale(order);if(typeof einvStamp==="function")einvStamp(order,"invoice");audit("sale",no+" "+money(T.total));save();
+  DB.orders.push(order);if(typeof logRx==="function")logRx(order);postSale(order);if(typeof einvStamp==="function")einvStamp(order,"invoice");if(bm("serial"))recordWarranty(order);if(S.jobId)finishJob(order,S.jobId);if(S.vehicle&&cu)rememberVehicle(cu.id,S.vehicle);audit("sale",no+" "+money(T.total));save();
   return order;
 }
 function completeSale(payments,change){

@@ -3,14 +3,14 @@
    providers & insurance (clinic/hospital billing, salon), and roles per business type. */
 
 /* ---------- roles by business type ---------- */
-const ROLE_LABELS={owner:'Owner',admin:'Admin',manager:'Manager',cashier:'Cashier',waiter:'Waiter',kitchen:'Kitchen',accountant:'Accountant',stock_keeper:'Store keeper',pharmacist:'Pharmacist',billing:'Billing clerk'};
+const ROLE_LABELS={owner:'Owner',admin:'Admin',manager:'Manager',cashier:'Cashier',waiter:'Waiter',kitchen:'Kitchen',accountant:'Accountant',stock_keeper:'Store keeper',pharmacist:'Pharmacist',billing:'Billing clerk',technician:'Technician'};
 const ROLE_SETS={restaurant:['admin','manager','cashier','waiter','kitchen','accountant'],supermarket:['admin','manager','cashier','stock_keeper','accountant'],retail:['admin','manager','cashier','stock_keeper','accountant'],
   pharmacy:['admin','manager','pharmacist','cashier','stock_keeper','accountant'],clinic:['admin','manager','billing','pharmacist','stock_keeper','accountant'],salon:['admin','manager','cashier','accountant']};
-const ROLE_TYPE_LABELS={pharmacy:{manager:'Pharmacist-in-charge',cashier:'Counter assistant'},clinic:{manager:'Billing manager',admin:'Administrator'},salon:{cashier:'Front desk'},retail:{cashier:'Sales assistant'}};
+const ROLE_TYPE_LABELS={tailor:{cashier:'Front desk',technician:'Tailor / cutter'},butcher:{cashier:'Counter'},garage:{manager:'Service advisor',cashier:'Front desk',technician:'Mechanic',stock_keeper:'Parts keeper'},tyre:{cashier:'Counter',technician:'Tyre fitter',stock_keeper:'Tyre store keeper'},pharmacy:{manager:'Pharmacist-in-charge',cashier:'Counter assistant'},clinic:{manager:'Billing manager',admin:'Administrator'},salon:{cashier:'Front desk'},retail:{cashier:'Sales assistant'}};
 const roleLabel=r=>((ROLE_TYPE_LABELS[bizType()]||{})[r])||ROLE_LABELS[r]||r;
 const rolesForType=()=>ROLE_SETS[bizType()]||ROLE_SETS.restaurant;
 const ROLE_NOTES={owner:'Everything',admin:'Everything except ownership',manager:'Operations, stock, reports, approvals, refunds',cashier:'Register, customers, own orders',waiter:'Take orders and view orders',kitchen:'Kitchen display only',accountant:'Accounts, e-invoicing and reports',
-  stock_keeper:'Stock room only (receive, count, adjust)',pharmacist:'Register, stock, prescriptions and controlled-drug approval',billing:'Billing desk: register, patients, bills'};
+  stock_keeper:'Stock room only (receive, count, adjust)',pharmacist:'Register, stock, prescriptions and controlled-drug approval',billing:'Billing desk: register, patients, bills',technician:'Job tickets only: see and update the status of assigned work'};
 
 /* ---------- controlled-drug approval (pharmacist / manager PIN) ---------- */
 function requirePharmacist(reason,cb){
@@ -25,8 +25,8 @@ function requirePharmacist(reason,cb){
 
 /* ---------- adding items to the ticket ---------- */
 function pushLine(line,it){
-  const plain=!it.weighed&&!line.rx&&!line.provider&&!line.note;
-  const ex=plain&&R.cart.find(x=>x.itemId===it.id&&!x.note&&!x.rx&&!x.provider&&!itemById(x.itemId).weighed);
+  const plain=!it.weighed&&!line.rx&&!line.provider&&!line.note&&!line.serial;
+  const ex=plain&&R.cart.find(x=>x.itemId===it.id&&!x.note&&!x.rx&&!x.provider&&!x.serial&&!itemById(x.itemId).weighed);
   if(ex)ex.qty=rq(ex.qty+line.qty);else R.cart.push(line);
 }
 function addItemFlow(it,presetQty){
@@ -35,6 +35,7 @@ function addItemFlow(it,presetQty){
   const line={key:uid('l'),itemId:it.id,qty:presetQty||1,note:''}, steps=[];
   if(it.weighed&&!presetQty)steps.push(cb=>weightModal(it,null,w=>{line.qty=w;cb()}));
   if(it.rx&&bm('rx'))steps.push(cb=>rxModal(it,r=>{line.rx=r;cb()}));
+  if(it.serial&&bm('serial'))steps.push(cb=>serialModal(it,line,cb));
   if(bm('provider')&&it.kind==='service'){ if(R.provider)line.provider=R.provider; else steps.push(cb=>providerModal(p=>{line.provider=p;R.provider=p;cb()})) }
   (function run(i){if(i>=steps.length){pushLine(line,it);render();const q=$('#rq');if(q)q.focus();return}steps[i](()=>run(i+1))})(0);
 }
@@ -97,9 +98,10 @@ function tilesHtml(items){
 /* EAN-13 check digit for the first 12 digits */
 function ean13Check(d12){let s=0;for(let i=0;i<12;i++)s+=(+d12[i])*(i%2?3:1);return (10-(s%10))%10}
 function parseScan(raw){
-  let q=String(raw).trim(), mult=1; const m=q.match(/^(\d{1,3})\s*[*xX]\s*(.+)$/); if(m){mult=+m[1];q=m[2].trim()}
-  if(/^2\d{12}$/.test(q)&&bm('weighed')&&ean13Check(q.slice(0,12))===+q[12]){const plu=q.slice(1,7), it=DB.items.find(i=>i.active&&i.weighed&&String(i.plu).padStart(6,'0')===plu);if(it)return {item:it,qty:rq(parseInt(q.slice(7,12),10)/1000),weight:true}}
-  const it=DB.items.find(i=>i.active&&(i.barcode===q||i.sku.toLowerCase()===q.toLowerCase()||(i.plu&&i.plu===q)));
+  const bc=typeof bcCfg==='function'?bcCfg():{allowSku:'1',qtyMult:'1'};
+  let q=String(raw).trim(), mult=1; const m=bc.qtyMult!=='0'&&q.match(/^(\d{1,3})\s*[*xX]\s*(.+)$/); if(m){mult=+m[1];q=m[2].trim()}
+  if(bm('weighed')&&typeof parseScaleCode==='function'){const sp=parseScaleCode(q);if(sp)return sp}
+  const it=DB.items.find(i=>i.active&&(i.barcode===q||(bc.allowSku!=='0'&&i.sku.toLowerCase()===q.toLowerCase())||(i.plu&&i.plu===q)));
   return it?{item:it,qty:mult,weight:false}:null;
 }
 
@@ -175,29 +177,32 @@ function itemExtraFields(it){
   if(bm('weighed'))h+=field('Unit (pcs / kg / l)','unit',it.unit||'pcs',{max:6})+field('PLU / scale code','plu',it.plu||'',{max:12});
   if(bm('variants'))h+=field('Group (e.g. T-Shirt)','group',it.group||'',{max:60})+field('Variant (size / colour)','variant',it.variant||'',{max:30});
   if(bm('provider'))h+=select('Type','kind',[['product','Product'],['service','Service']],it.kind||'product');
+  if(bm('serial'))h+=field('Tyre size (e.g. 205/55R16)','size',it.size||'',{max:20})+field('Brand','brand',it.brand||'',{max:30})+field('Warranty (months)','warrantyMonths',it.warrantyMonths||0,{type:'number',min:0,max:120});
   return h;
 }
 function itemExtraChecks(it){
-  return (bm('weighed')?check('Sold by weight','weighed',it.weighed):'')+(bm('rx')?check('Prescription only (Rx)','rx',it.rx)+check('Controlled medicine','controlled',it.controlled):'');
+  return (bm('weighed')?check('Sold by weight / length / volume','weighed',it.weighed):'')+(bm('serial')?check('Record DOT / serial per piece','serial',it.serial):'')+(bm('rx')?check('Prescription only (Rx)','rx',it.rx)+check('Controlled medicine','controlled',it.controlled):'');
 }
 function itemExtra(d){
-  const o={}; ['unit','plu','group','variant','kind'].forEach(k=>{if(d[k]!==undefined)o[k]=String(d[k]).trim()}); ['weighed','rx','controlled'].forEach(k=>{if(k in d)o[k]=!!d[k]});
+  const o={}; ['unit','plu','group','variant','kind'].forEach(k=>{if(d[k]!==undefined)o[k]=String(d[k]).trim()}); ['weighed','rx','controlled','serial'].forEach(k=>{if(k in d)o[k]=!!d[k]});
+  if(d.warrantyMonths!==undefined)o.warrantyMonths=Math.max(0,Math.round(num(d.warrantyMonths)));
+  ['size','brand'].forEach(k=>{if(d[k]!==undefined)o[k]=String(d[k]).trim()});
   if(o.kind==='service'){o.track=false}
   return o;
 }
 function guestExtraFields(c){
-  c=c||{}; if(!bm('insurance'))return '';
-  return field('Patient file / MRN no.','mrn',c.mrn||'',{max:30})+field('Insurer','insurer',c.insurer||'',{max:60})+field('Policy / member no.','policy',c.policy||'',{max:40})+field('Patient co-pay %','copay',c.copay!=null?c.copay:0,{type:'number',min:0,max:100,step:'1'});
+  c=c||{}; let h=bm('credit')?field('Credit limit (0 = cash only)','creditLimit',c.creditLimit||0,{type:'number',min:0,step:'1'}):''; if(!bm('insurance'))return h;
+  return h+field('Patient file / MRN no.','mrn',c.mrn||'',{max:30})+field('Insurer','insurer',c.insurer||'',{max:60})+field('Policy / member no.','policy',c.policy||'',{max:40})+field('Patient co-pay %','copay',c.copay!=null?c.copay:0,{type:'number',min:0,max:100,step:'1'});
 }
 function guestExtra(f){
-  const o={}; ['mrn','insurer','policy'].forEach(k=>{if(f[k]!==undefined)o[k]=String(f[k]).trim()}); if(f.copay!==undefined)o.copay=Math.min(100,Math.max(0,num(f.copay))); return o;
+  const o={}; ['mrn','insurer','policy'].forEach(k=>{if(f[k]!==undefined)o[k]=String(f[k]).trim()}); if(f.creditLimit!==undefined)o.creditLimit=Math.max(0,num(f.creditLimit)); if(f.copay!==undefined)o.copay=Math.min(100,Math.max(0,num(f.copay))); return o;
 }
 function roleOptions(u){
   const list=rolesForType().slice(); if(u&&list.indexOf(u.role)<0)list.push(u.role);
   return list.map(r=>[r,roleLabel(r)]);
 }
 function reportTabs(){
-  return REPORTS.concat(bm('rx')?[['rx','Prescription register']]:[],bm('provider')?[['provider','Provider earnings']]:[]);
+  return REPORTS.concat([['inv-stock','Stock report'],['inv-activity','Item activity'],['inv-adjust','Adjustments'],['inv-expiry','Expiry / batch']],can('accounts')?[['acc-summary','Accounts summary'],['acc-stock','Stock (books)'],['acc-vat','Tax summary']]:[],bm('rx')?[['rx','Prescription register']]:[],bm('provider')?[['provider','Provider earnings']]:[],bm('serial')?[['warranty','Warranty register']]:[],bm('vehicle')?[['vehicle','Vehicle history']]:[]);
 }
 function vTeam(){return vTeamBase()+(bm('provider')?vProviders():'')}
 function bizSettingsHtml(){

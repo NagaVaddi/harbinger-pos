@@ -344,3 +344,33 @@ th,.tile,.pick,.pal-i{text-align:start}th.r,td.r,.r{text-align:end}
 @media (max-width:820px){:root:not([data-density="comfortable"]) .shell{grid-template-columns:1fr}:root:not([data-density="comfortable"]) .side{width:230px}:root:not([data-density="comfortable"]) .view{padding:12px}:root:not([data-density="comfortable"]) .rbody{grid-template-columns:1fr}:root:not([data-density="comfortable"]) .form2{grid-template-columns:1fr}}
 @media (max-width:1000px){:root:not([data-density="comfortable"]) .cols2,:root:not([data-density="comfortable"]) .cols3{grid-template-columns:1fr}}
 @media (min-width:1900px){:root:not([data-density="comfortable"]) .view{padding:18px 30px}}
+
+/* ===== trades: jobs, breakdown rows, measurements ===== */
+.vrow3{display:grid;grid-template-columns:1fr 84px 84px 30px;gap:6px;margin-bottom:6px;align-items:center}
+.bdrow{grid-template-columns:1fr 110px 24px 30px}
+.measure{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;margin:8px 0}
+.jboard{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,1fr);gap:12px;overflow-x:auto;padding-bottom:8px}
+.jcol{background:var(--soft);border-radius:var(--r);padding:10px;min-height:120px}
+.jcol h3{margin:0 0 8px;display:flex;justify-content:space-between}
+.jcol .count{background:var(--surface);border-radius:99px;padding:0 8px;font-size:12px}
+.jcard{display:block;width:100%;text-align:start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px;color:var(--text);cursor:pointer}
+.jcard:hover{border-color:var(--brand)}.jcard.late{border-inline-start:4px solid var(--danger)}
+.steps2{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.stp{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:99px;padding:5px 12px;font-size:12.5px}
+.stp.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}.stp:disabled{opacity:.6}
+.warn-t{color:var(--warn);font-size:12.5px;min-height:1em}
+/* ===== reports hub ===== */
+.rh-t{margin:18px 0 8px}
+.rhub{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-bottom:6px}
+.rcard{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--text);text-decoration:none;box-shadow:var(--shadow)}
+.rcard:hover{border-color:var(--brand)}
+.rcard .ri{flex:none;width:38px;height:38px;border-radius:10px;background:var(--soft);color:var(--brand);display:grid;place-items:center}
+.rcard .rt2{flex:1;display:flex;flex-direction:column;gap:2px}.rcard .rt2 small{color:var(--muted);font-size:12px;line-height:1.35}
+.rcard .chev{color:var(--muted);font-size:20px}
+:root[dir="rtl"] .rcard .chev{transform:scaleX(-1)}
+.ean{display:block}
+@media print{.side,.top,.tabs,.bar,.scrim{display:none!important}.view{padding:0!important}}
+
+.pager{display:flex;align-items:center;gap:6px;margin-top:12px;flex-wrap:wrap}
+.pg{min-width:34px;min-height:34px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:8px;padding:0 8px}
+.pg.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}

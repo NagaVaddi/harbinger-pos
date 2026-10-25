@@ -1,5 +1,5 @@
 'use strict';
-/* Harbinger Command Center — one dashboard engine, six layouts (restaurant, supermarket, retail, pharmacy, clinic, salon).
+/* Harbinger Dashboard — one dashboard engine, six layouts (restaurant, supermarket, retail, pharmacy, clinic, salon).
    Each business type picks its KPI tiles and its panels (BIZ[type].dash). Sales are shown ex-tax: that is what the business actually earns. */
 
 const D_RANGES=[['today','Today'],['yesterday','Yesterday'],['7d','Last 7 days'],['30d','Last 30 days']];
@@ -81,7 +81,7 @@ function buildCtx(R_,cur,prev){
   const ch={},pay={},cat={},catCost={},item={},staff={};
   cur.done.forEach(o=>{
     const k=o.onlineId?chName(o.channel):typeLabel(o.type);ch[k]=(ch[k]||0)+netEx(o);
-    o.payments.forEach(p=>{const pk=({cash:'Cash',card:'Card',wallet:'Wallet / QR',cod:'Pay on delivery',aggregator:'Delivery-app payout',insurance:'Insurance'}[p.method]||p.method);pay[pk]=(pay[pk]||0)+p.amount});
+    o.payments.forEach(p=>{const pk=({cash:'Cash',card:'Card',wallet:'Wallet / QR',cod:'Pay on delivery',aggregator:'Delivery-app payout',insurance:'Insurance',credit:'On account (credit)',advance:'Advance (job order)'}[p.method]||p.method);pay[pk]=(pay[pk]||0)+p.amount});
     o.lines.forEach(l=>{const it=itemById(l.itemId),ck=it?catName(it.categoryId):'Other',v=lineRevEx(l);
       cat[ck]=(cat[ck]||0)+v;catCost[ck]=(catCost[ck]||0)+l.qty*(l.cost||0);const a=item[l.name]||(item[l.name]={n:l.name,q:0,v:0,c:0,id:l.itemId});a.q=rq(a.q+l.qty);a.v+=v;a.c+=l.qty*(l.cost||0)});
     const s=staff[o.userId]||(staff[o.userId]={n:userName(o.userId),o:0,v:0,d:0,sub:0});s.o++;s.v+=netEx(o);s.d+=o.discountTotal;s.sub+=o.subtotal;
@@ -97,6 +97,12 @@ function kpiTiles(c){
   const salesL=DB.settings.vatPct>0?'Net sales (ex-'+(DB.settings.taxLabel||'tax')+')':'Sales', sp=spark(c.sc), type=bizType();
   const gm=(label)=>T(label||'Gross margin',Math.round(cur.margin)+'%',Math.round(cur.margin-prev.margin),'',money(cur.gross)+' profit');
   if(type==='supermarket')return [T(salesL,money(cur.sales),pct(cur.sales,prev.sales),sp,cur.n+' baskets'),T('Baskets',cur.n,pct(cur.n,prev.n),'','avg '+money(cur.aov)),T('Avg basket',money(cur.aov),pct(cur.aov,prev.aov)),T('Items per basket',cur.upb.toFixed(1),null,'','units '+rq(cur.units)),gm(),T('Waste & shrink',money(shrinkValue(R_.from,R_.to)),null,'','written off at cost',true)];
+  const owedT=T('Owed by customers',money(creditOwed()),null,'','credit accounts',true), unitsOf_=pred=>rq(cur.done.reduce((a,o)=>a+o.lines.filter(l=>pred(itemById(l.itemId)||{})).reduce((x,l)=>x+l.qty,0),0));
+  if(type==='tailor'){const m_=balMap(null);return [T(salesL,money(cur.sales),pct(cur.sales,prev.sales),sp,cur.n+' deliveries'),T('Jobs in progress',DB.jobs.filter(jobOpen).length,null,'','not yet delivered'),T('Overdue jobs',DB.jobs.filter(isOverdue).length,null,'','past the promised date',true),T('Advances held',money(r2(-m_[LID('advances')].close)),null,'','for unfinished work'),T('Avg order',money(cur.aov),pct(cur.aov,prev.aov)),owedT]}
+  if(type==='garage'){const veh=new Set(cur.done.filter(o=>o.vehicle&&o.vehicle.plate).map(o=>o.vehicle.plate)).size, lab=cur.done.reduce((a,o)=>a+o.lines.filter(l=>l.kind==='service').reduce((x,l)=>x+lineRevEx(l),0),0);return [T(salesL,money(cur.sales),pct(cur.sales,prev.sales),sp,cur.n+' invoices'),T('Vehicles serviced',veh,null,'','distinct plates'),T('Open job cards',DB.jobs.filter(jobOpen).length,null,'','in the workshop'),T('Avg repair order',money(cur.aov),pct(cur.aov,prev.aov)),T('Labour share',cur.sales>0?Math.round(lab/cur.sales*100)+'%':'0%',null,'','of revenue'),owedT]}
+  if(type==='butcher'){const bs=DB.breakdowns.filter(b=>b.ts>=R_.from&&b.ts<=R_.to),tin=bs.reduce((a,b)=>a+b.qty,0),tout=bs.reduce((a,b)=>a+b.qty-b.wasteKg,0);return [T(salesL,money(cur.sales),pct(cur.sales,prev.sales),sp,cur.n+' sales'),T('Kilos sold',unitsOf_(i=>i.weighed),null,'','by weight'),gm(),T('Cutting yield',tin?Math.round(tout/tin*1000)/10+'%':'—',null,'',bs.length+' breakdowns'),T('Waste in cutting',money(r2(bs.reduce((a,b)=>a+b.wasteValue,0))),null,'','value at cost',true),owedT]}
+  if(type==='grocery')return [T(salesL,money(cur.sales),pct(cur.sales,prev.sales),sp,cur.n+' baskets'),T('Avg basket',money(cur.aov),pct(cur.aov,prev.aov)),T('Items per basket',cur.upb.toFixed(1),null,'','units '+rq(cur.units)),gm(),T('Low or out of stock',DB.items.filter(i=>i.active&&i.track&&stockOf(i.id)<=i.reorder).length,null,'','reorder soon',true),owedT];
+  if(type==='tyre')return [T(salesL,money(cur.sales),pct(cur.sales,prev.sales),sp,cur.n+' invoices'),T('Tyres sold',unitsOf_(i=>i.serial),null,'','units'),T('Avg ticket',money(cur.aov),pct(cur.aov,prev.aov)),gm(),T('Warranties active',DB.warranty.filter(w=>w.expires&&w.expires>now()).length,null,'','tyres under warranty'),owedT];
   if(type==='retail')return [T(salesL,money(cur.sales),pct(cur.sales,prev.sales),sp,cur.n+' transactions'),T('Transactions',cur.n,pct(cur.n,prev.n)),T('Avg transaction',money(cur.aov),pct(cur.aov,prev.aov)),T('Units per transaction',cur.upb.toFixed(1)),gm(),T('Return rate',cur.returnRate.toFixed(1)+'%',null,'',cur.refunds+' returned',true)];
   if(type==='pharmacy'){const rx=new Set();cur.done.forEach(o=>o.lines.forEach(l=>{if(l.rx)rx.add(l.rx.no)}));const b=expiryBuckets();
     return [T(salesL,money(cur.sales),pct(cur.sales,prev.sales),sp,cur.n+' sales'),T('Prescriptions dispensed',rx.size,null,'','distinct Rx numbers'),T('Avg ticket',money(cur.aov),pct(cur.aov,prev.aov)),gm(),T('Insurance billed',money(insuranceBilled(cur.done)),null,'','claims raised'),T('Stock at risk (≤90 days)',money(r2(b.expired.v+b.d7.v+b.d30.v+b.d90.v)),null,'',b.expired.n?b.expired.n+' units already expired':'none expired',true)]}
@@ -108,7 +114,7 @@ function kpiTiles(c){
 }
 
 /* ---------- widgets ---------- */
-const topTitle=()=>({supermarket:'Best-selling products',retail:'Best-selling products',pharmacy:'Top medicines & products',clinic:'Top services',salon:'Top services',restaurant:'Top items'}[bizType()]);
+const topTitle=()=>({supermarket:'Best-selling products',retail:'Best-selling products',pharmacy:'Top medicines & products',clinic:'Top services',salon:'Top services',restaurant:'Top items',tailor:'Top services',butcher:'Best-selling cuts',grocery:'Best-selling products',garage:'Top jobs & parts',tyre:'Top tyres & services'}[bizType()]);
 const W={
   brief:()=>briefHtml(),
   trend:c=>card('Sales trend',(c.R_.hourly?'by hour':'by day')+' · dashed line = '+c.R_.label.replace('vs ',''),lineChart(c.labels,c.sc,c.sp,v=>fmt(v).replace(/\.0+$/,'').replace(/(\.\d)0$/,'$1'))),
@@ -138,11 +144,21 @@ const W={
     return card('Sell-through','sold ÷ (sold + on hand), 30 days',tbl([{h:'Product',r:r=>esc(r.k)},{h:'Sold',cls:'r',r:r=>r.q},{h:'On hand',cls:'r',r:r=>r.s},{h:'Sell-through',cls:'r',r:r=>r.p+'%'}],rows,'No stock data.'))},
   rxsplit:c=>{let rxv=0,otc=0,ctl=0,rxn=0;c.cur.done.forEach(o=>o.lines.forEach(l=>{const v=lineRevEx(l);if(l.rx){rxv+=v;rxn+=l.qty;if(l.rx.controlled)ctl+=l.qty}else otc+=v}));
     return card('Prescription vs over-the-counter','this period',mixBars([{l:'Prescription (Rx)',v:r2(rxv)},{l:'Over the counter',v:r2(otc)}])+'<p class="sm">Controlled medicine units dispensed: <b>'+rq(ctl)+'</b> · Rx units: <b>'+rq(rxn)+'</b> · <a href="#/reports/rx">Prescription register</a></p>')},
-  providers:c=>card(bizType()==='clinic'?'Doctors & departments':'Stylists & therapists','revenue and commission, this period',tbl([{h:'Provider',r:r=>'<b>'+esc(r.name)+'</b><br><span class="muted sm">'+esc(r.dept)+'</span>'},{h:'Services',cls:'r',r:r=>r.n},{h:'Revenue',cls:'r',r:r=>fmt(r.rev)},{h:'Commission',cls:'r',r:r=>fmt(r.comm)}],providerRevenue(c.R_.from,c.R_.to).slice(0,8),'No services attributed to a provider in this period.')),
+  providers:c=>card(({clinic:'Doctors & departments',tailor:'Tailors',garage:'Mechanics',tyre:'Fitters'}[bizType()])||'Stylists & therapists','revenue and commission, this period',tbl([{h:'Provider',r:r=>'<b>'+esc(r.name)+'</b><br><span class="muted sm">'+esc(r.dept)+'</span>'},{h:'Services',cls:'r',r:r=>r.n},{h:'Revenue',cls:'r',r:r=>fmt(r.rev)},{h:'Commission',cls:'r',r:r=>fmt(r.comm)}],providerRevenue(c.R_.from,c.R_.to).slice(0,8),'No services attributed to a provider in this period.')),
   payer:c=>{const insBilled=insuranceBilled(c.cur.done),total=r2(c.cur.done.reduce((a,o)=>a+o.total,0)),m=balMap(null),
       rows=DB.acc.ledgers.filter(l=>l.insurer).map(l=>({n:l.insurer,b:m[l.id].close})).filter(r=>Math.abs(r.b)>0.004).sort((a,b)=>b.b-a.b);
     return card('Payer mix & claims','',mixBars([{l:'Insurance',v:insBilled},{l:'Self-pay / copay',v:Math.max(0,r2(total-insBilled))}])+'<div style="height:8px"></div>'+tbl([{h:'Insurer',r:r=>esc(r.n)},{h:'Outstanding',cls:'r',r:r=>fmt(r.b)}],rows,'No claims outstanding.')+(rows.length?'<p class="sm"><a href="#/accounts/outstanding">Record settlements</a></p>':''))},
-  svcmix:c=>{const svc={};c.cur.done.forEach(o=>o.lines.forEach(l=>{if(l.kind==='service')svc[l.name]=(svc[l.name]||0)+l.qty}));return card('Services booked','by count',mixBars(objRows(svc),'n'))}
+  svcmix:c=>{const svc={};c.cur.done.forEach(o=>o.lines.forEach(l=>{if(l.kind==='service')svc[l.name]=(svc[l.name]||0)+l.qty}));return card('Services booked','by count',mixBars(objRows(svc),'n'))},
+  jobsBoard:()=>{const fl=jobFlow().filter(f=>f[0]!=='delivered'),rows=fl.map(f=>{const js=DB.jobs.filter(j=>j.status===f[0]);return {l:f[1],v:js.length,val:r2(js.reduce((a,j)=>a+jobTotals(j).total,0))}});
+    return card(tr('Job orders'),'open work by stage',tbl([{h:'Stage',r:r=>esc(r.l)},{h:'Jobs',cls:'r',r:r=>r.v},{h:'Value',cls:'r',r:r=>fmt(r.val)}],rows,'')+'<p class="sm"><a href="#/jobs">Open the job board</a></p>')},
+  overdue:()=>overdueJobsHtml(),
+  serviceDue:()=>{const list=serviceDueList().slice(0,8);return card('Service reminders','next service due within 14 days',tbl([{h:'Vehicle',r:r=>'<b>'+esc((r.vehicle||{}).plate||'—')+'</b><br><span class="muted sm">'+esc(custName(r.customerId))+'</span>'},{h:'Due',r:r=>fmtDate(r.nextService.date)},{h:'',cls:'r',r:r=>btn('Open','job-open',r.id)}],list,'No services due soon.'))},
+  labourParts:c=>{let lab=0,par=0;c.cur.done.forEach(o=>o.lines.forEach(l=>{const v=lineRevEx(l);if(l.kind==='service')lab+=v;else par+=v}));return card(bizType()==='tyre'?'Fitting vs tyres':'Labour vs parts','this period',mixBars([{l:'Labour / services',v:r2(lab)},{l:bizType()==='tyre'?'Tyres & products':'Parts & products',v:r2(par)}]))},
+  credit:()=>{const ag=creditAging(),owed=creditOwed();return card('Customer credit','owed to you · '+money(owed),mixBars(objRows(ag.tot))+'<div style="height:8px"></div>'+tbl([{h:'Customer',r:r=>esc(r.name)},{h:'Owes',cls:'r',r:r=>fmt(r.bal)},{h:'60+ days',cls:'r',r:r=>r.old>0?'<span class="neg">'+fmt(r.old)+'</span>':'—'}],ag.rows.slice(0,5),'Nobody owes you anything.')+'<p class="sm"><a href="#/guests/credit">Credit accounts</a></p>')},
+  yield:()=>{const bs=DB.breakdowns.filter(b=>b.ts>=now()-30*864e5),tin=rq(bs.reduce((a,b)=>a+b.qty,0)),tout=rq(bs.reduce((a,b)=>a+b.qty-b.wasteKg,0)),wv=r2(bs.reduce((a,b)=>a+b.wasteValue,0));
+    return card('Cutting yield','carcass breakdowns, 30 days',(bs.length?'<p><b>'+(tin?Math.round(tout/tin*1000)/10:0)+'%</b> average yield · '+tin+' kg in, '+tout+' kg of cuts · waste worth <b>'+money(wv)+'</b></p>':'')+tbl([{h:'When',r:r=>fmtDate(r.ts)},{h:'Source',r:r=>esc(r.srcName)},{h:'Yield',cls:'r',r:r=>r.yieldPct+'%'},{h:'Waste',cls:'r',r:r=>r.wasteKg+' kg'}],bs.slice(-5).reverse(),'No breakdowns yet. Record one in Stock Room → Breakdown.'))},
+  tyreSizes:c=>{const z={};c.cur.done.forEach(o=>o.lines.forEach(l=>{const it=itemById(l.itemId);if(it&&it.size)z[it.size]=(z[it.size]||0)+l.qty}));return card('Tyre sizes sold','units, this period',mixBars(objRows(z),'n'))},
+  brandmix:c=>{const z={};c.cur.done.forEach(o=>o.lines.forEach(l=>{const it=itemById(l.itemId);if(it&&it.brand)z[it.brand]=(z[it.brand]||0)+lineRevEx(l)}));return card('Brand mix','revenue, this period',mixBars(objRows(z)))}
 };
 function recentOrders(){
   return tbl([{h:'#',r:r=>'<a href="#" data-act="order-view" data-id="'+r.id+'"><b>'+esc(r.no)+'</b></a>'},{h:'Time',r:r=>fmtDT(r.ts)},{h:'Type',r:r=>esc(typeLabel(r.type))},{h:'Total',cls:'r',r:r=>fmt(r.total)},{h:'Status',r:r=>badge(r.status,r.status==='completed'?'ok':'bad')}],DB.orders.slice(-8).reverse(),'No orders yet.');
@@ -153,6 +169,7 @@ function opsCard(){
   let h=li(bizType()==='clinic'?'Billing desks open':'Registers open',open.length,'expected cash '+money(open.reduce((a,s)=>a+sessionStats(s).expected,0)));
   if(bm('kitchen')){const tix=kdsTickets();h+=li('Kitchen queue',tix.length,tix.length?'oldest '+Math.floor((now()-tix[0].ts)/60000)+' min':'clear')}
   if(bm('online'))h+=li('New online / app orders',newOnlineCount(),'<a href="#/online">open queue</a>',newOnlineCount()>0);
+  if(bm('jobs')){const n=DB.jobs.filter(jobOpen).length,od=DB.jobs.filter(isOverdue).length;h+=li('Open '+(jobKind()==='tailor'?'job orders':'job cards'),n,'<a href="#/jobs">open board</a>')+li('Overdue jobs',od,'',od>0)}
   if(bizType()!=='salon')h+=li('Items low or out of stock',lowN,'<a href="#/stock/reorder">reorder list</a>',lowN>0);
   if(bm('expiry'))h+=li('Expired stock on shelf',rq(b.expired.n),b.expired.n?'blocked from sale — write off':'compliant',b.expired.n>0)+li('Lots expiring in 30 days',rq(b.d7.n+b.d30.n),'<a href="#/stock/lots">view lots</a>',b.d7.n>0);
   if(bm('insurance'))h+=li('Insurance claims outstanding',money(claimsOutstanding()),'<a href="#/accounts/outstanding">settle claims</a>');
@@ -165,7 +182,7 @@ function moneyCard(){
   const vat=r2(-m[LID('vat_out')].close-m[LID('vat_in')].close);
   return '<section class="card"><h2>Money</h2><ul class="opsl"><li><span>Cash & bank</span><b>'+money(sum('g_cash',1)+sum('g_bank',1))+'</b></li>'+
     '<li><span>Owed to suppliers</span><b>'+money(sum('g_cred',-1))+'</b><small><a href="#/accounts/outstanding">details</a></small></li>'+
-    '<li><span>Owed by '+(bm('insurance')?'insurers':'delivery apps / COD')+'</span><b>'+money(bm('insurance')?claimsOutstanding():r2(m[LID('aggr')].close+m[LID('cod')].close))+'</b></li>'+
+    '<li><span>Owed by '+(bm('insurance')?'insurers':'delivery apps / COD')+'</span><b>'+money(bm('insurance')?claimsOutstanding():r2(m[LID('aggr')].close+m[LID('cod')].close))+'</b></li>'+(bm('credit')?'<li><span>Owed by customers (credit)</span><b>'+money(creditOwed())+'</b><small><a href="#/guests/credit">details</a></small></li>':'')+
     (DB.settings.vatPct>0?'<li><span>'+esc(DB.settings.taxLabel||'Tax')+' payable (output − input)</span><b>'+money(vat)+'</b></li>':'')+
     '<li><span>Net profit this month</span><b class="'+(mt.t.net<0?'neg':'pos')+'">'+money(mt.t.net)+'</b><small><a href="#/accounts/pl">P&amp;L</a></small></li></ul></section>';
 }
@@ -180,7 +197,7 @@ function vDashboard(){
     const cells=row.map(id=>W[id]?W[id](c):'').filter(Boolean); if(!cells.length)return '';
     return cells.length===1?(row[0]==='brief'?cells[0]:'<div class="cols1">'+cells[0]+'</div>'):'<div class="'+(cells.length>=3?'cols3':'cols2')+'">'+cells.join('')+'</div>';
   }).join('');
-  return head(tr('Command Center'),DB.settings.business+' · '+biz().name+' · '+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'}),rangeBar+btn(tr('Open POS'),'go-register',null,'primary'))+
+  return head(tr('Dashboard'),DB.settings.business+' · '+biz().name+' · '+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'}),rangeBar+btn(tr('Open POS'),'go-register',null,'primary'))+
     empty+'<div class="kpis dks">'+kpiTiles(c).join('')+'</div>'+rows;
 }
 A['dash-range']=d=>{UIS.dr=d.id;render()};
@@ -193,7 +210,12 @@ const DEMO_CFG={
   retail:{perDay:22,lines:[1,3],hours:{10:3,11:4,12:5,13:5,14:5,15:6,16:8,17:10,18:12,19:12,20:10,21:7,22:3}},
   pharmacy:{perDay:40,lines:[1,4],hours:{8:3,9:6,10:7,11:7,12:6,13:5,14:5,15:6,16:7,17:8,18:9,19:9,20:8,21:6,22:4,23:2}},
   clinic:{perDay:28,lines:[1,3],hours:{8:6,9:10,10:11,11:10,12:7,13:4,14:6,15:8,16:9,17:8,18:6,19:3}},
-  salon:{perDay:16,lines:[1,2],hours:{10:3,11:5,12:6,13:6,14:6,15:7,16:8,17:9,18:9,19:8,20:6,21:3}}
+  salon:{perDay:16,lines:[1,2],hours:{10:3,11:5,12:6,13:6,14:6,15:7,16:8,17:9,18:9,19:8,20:6,21:3}},
+  tailor:{perDay:9,lines:[1,2],hours:{10:3,11:5,12:5,13:3,14:3,15:5,16:7,17:9,18:9,19:8,20:6,21:3}},
+  butcher:{perDay:34,lines:[1,4],hours:{7:3,8:6,9:8,10:8,11:7,12:6,13:4,14:3,15:4,16:6,17:9,18:10,19:8,20:5}},
+  grocery:{perDay:48,lines:[2,8],hours:{7:3,8:5,9:6,10:6,11:5,12:5,13:4,14:4,15:5,16:7,17:9,18:11,19:10,20:8,21:5,22:2}},
+  garage:{perDay:9,lines:[1,3],hours:{8:4,9:8,10:8,11:7,12:5,13:3,14:5,15:7,16:7,17:5}},
+  tyre:{perDay:11,lines:[1,3],hours:{8:3,9:6,10:7,11:7,12:6,13:4,14:5,15:7,16:8,17:8,18:6,19:3}}
 };
 function genDemoData(days){
   if(typeof finalizeOrder!=='function')return 0;
@@ -201,6 +223,7 @@ function genDemoData(days){
   const users=DB.users.filter(u=>u.active&&PERMS[u.role]&&PERMS[u.role].indexOf('register')>=0), items=DB.items.filter(i=>i.active&&i.sku!=='DELIVERY'), ct=DB.counters.filter(c=>c.active)[0];
   if(!items.length||!ct||!users.length)return 0;
   DEMO_GUESTS.forEach(g=>{if(!DB.customers.some(c=>c.phone===g[1]))DB.customers.push({id:uid('g'),name:g[0],phone:g[1],email:'',points:0,visits:0,spend:0,notes:'Sample '+(type==='clinic'?'patient':'guest'),created:now()})});
+  if(bm('credit'))DB.customers.forEach((c,i)=>{if(!c.creditLimit)c.creditLimit=[3000,5000,8000,2000][i%4]});
   if(bm('insurance'))DB.customers.forEach((c,i)=>{if(!c.insurer&&i%3!==0){c.insurer=i%2?'Gulf Health Insurance':'National Care Insurance';c.policy='POL-'+(1000+i*37);c.copay=i%2?20:10;c.mrn=c.mrn||'P-'+(100600+i)}});
   const target=q=>q.weighed?500:700;
   items.filter(i=>i.track).forEach(i=>{const q=Math.max(0,target(i)-stockOf(i.id));if(q>0){receiveLot(i.id,'DEMO-'+i.sku,(i.rx||bm('expiry'))?now()+120*864e5:null,q,i.cost,'Sample stock');postStockReceive(i,q,i.cost,'','Sample stock')}});
@@ -208,7 +231,7 @@ function genDemoData(days){
   const pickHour=()=>{let r=Math.random()*hw;for(const h of hours){r-=cfg.hours[h];if(r<=0)return +h}return +hours[hours.length-1]};
   const pick=a=>a[Math.floor(Math.random()*a.length)], rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
   const providerFor=it=>{const ps=DB.providers.filter(p=>p.active);if(!ps.length)return '';const cn=catName(it.categoryId).toLowerCase();const m=ps.filter(p=>(p.dept||'').toLowerCase()===cn||cn.indexOf((p.dept||'~').toLowerCase())>=0);return pick(m.length?m:ps).id};
-  const doctors=['Dr. Khalid Nasser','Dr. Mona Youssef','Dr. Imran Qureshi','Dr. Reem Al Ali'], wasBlocked=DB.settings.allowNegative; DB.settings.allowNegative=true;
+  const plates=Array.from({length:14},(_,i)=>({plate:'ABCDKRT'[i%7]+' '+rnd(10000,99999),make:pick(['Toyota','Nissan','Honda','Kia','Hyundai','Mitsubishi']),model:pick(['Camry','Patrol','Accord','Sportage','Tucson','Pajero'])})), doctors=['Dr. Khalid Nasser','Dr. Mona Youssef','Dr. Imran Qureshi','Dr. Reem Al Ali'], wasBlocked=DB.settings.allowNegative; DB.settings.allowNegative=true;
   let made=0; const today=dayStart(now());
   for(let d=days-1;d>=0;d--){
     const day=today-d*864e5, dow=new Date(day).getDay(), busy=(dow===5||dow===6?1.3:1)*(0.8+Math.random()*0.5), count=Math.round(cfg.perDay*busy)+(d===0?-8:0);
@@ -221,16 +244,18 @@ function genDemoData(days){
       let pool=items; if(bm('provider')&&type==='clinic')pool=Math.random()<0.88?items.filter(i=>i.kind==='service'):items.filter(i=>i.kind!=='service');
       for(let k=0;k<nl;k++){const it=pick(pool);if(used[it.id])continue;used[it.id]=1;
         const line={key:uid('l'),itemId:it.id,qty:it.weighed?rq(0.3+Math.random()*2.2):1+(Math.random()<0.22?1:0)+(Math.random()<0.07?1:0),note:''};
+        if(it.serial&&bm('serial')){line.qty=pick([1,2,2,4]);line.serial=Array.from({length:line.qty},()=>String(rnd(1,52)).padStart(2,'0')+String(rnd(23,26)))}
         if(it.kind==='service'&&bm('provider'))line.provider=providerFor(it);
         if(it.rx&&bm('rx'))line.rx={no:'RX'+rnd(100000,999999),doctor:pick(doctors),patient:pick(DB.customers).name,idNo:it.controlled?'784-'+rnd(1000,9999)+'-'+rnd(1000000,9999999):'',controlled:!!it.controlled,approvedBy:it.controlled?users[0].id:null};
         cart.push(line)}
       if(!cart.length)return;
       const r=Math.random(), type_=biz().types.length===3?(r<0.35?'dine-in':r<0.78?'takeaway':'delivery'):(biz().types.indexOf('delivery')>=0&&r<0.12?'delivery':(type==='clinic'&&r<0.1?'dine-in':'takeaway'));
-      const cu=Math.random()<(bm('insurance')?0.7:0.3)?pick(DB.customers):null;
-      const S={cart:cart,customerId:cu?cu.id:null,code:null,manual:Math.random()<0.06?{kind:'pct',value:10}:null,redeem:0,type:type_,table:type_==='dine-in'&&bm('tables')?'T'+rnd(1,10):''};
+      const cu=Math.random()<(bm('insurance')?0.7:bm('credit')?0.5:0.3)?pick(DB.customers):null;
+      const S={vehicle:bm('vehicle')&&Math.random()<0.85?pick(plates):null,cart:cart,customerId:cu?cu.id:null,code:null,manual:Math.random()<0.06?{kind:'pct',value:10}:null,redeem:0,type:type_,table:type_==='dine-in'&&bm('tables')?'T'+rnd(1,10):''};
       const T=computeTotals(S); let pays;
       if(bm('insurance')&&cu&&cu.insurer&&Math.random()<0.75){const copay=Math.min(100,+cu.copay||0), insAmt=r2(T.total*(100-copay)/100), rest=r2(T.total-insAmt), m2=Math.random()<0.5?'cash':'card';
         pays=[{method:'insurance',amount:insAmt,tendered:insAmt,insurer:cu.insurer}].concat(rest>0?[{method:m2,amount:rest,tendered:rest}]:[])}
+      else if(bm('credit')&&cu&&Math.random()<0.25){pays=[{method:'credit',amount:T.total,tendered:T.total,customerId:cu.id}]}
       else{const pr=Math.random(), method=pr<0.4?'cash':pr<0.88?'card':'wallet';pays=[{method:method,amount:T.total,tendered:T.total}]}
       const cashier=pick(users); ME=cashier;
       const o=finalizeOrder(S,sess,pays,0,{ts:ts,userId:cashier.id,kds:bm('kitchen')?{status:'done',ts:ts,doneTs:ts+12*6e4}:undefined});
@@ -242,9 +267,11 @@ function genDemoData(days){
       o.lines.forEach(l=>returnStock(l.allocs,l.itemId,'Refund #'+o.no));postRefund(o,true);if(typeof einvStamp==='function'&&o.einv)einvStamp(o,'credit');
       const cash=r2(o.payments.filter(p=>p.method==='cash').reduce((a,p)=>a+p.amount,0));if(cash>0)DB.vouchers.push({id:uid('v'),sessionId:sess.id,ts:o.refund.ts,type:'refund',amount:cash,reason:'Refund #'+o.no,userId:opener.id});
     });
+    if(bm('credit')){const bal=creditBalances();DB.customers.forEach(c2=>{const b=bal[c2.id]||0;if(b>20&&Math.random()<0.4){try{postCustomerPayment(c2,Math.random()<0.6?'cash':'card',r2(b*(0.4+Math.random()*0.6)),Math.min(day+864e5-1,now()),sess)}catch(e){}}})}
     if(d>0){const st=sessionStats(sess), v=Math.random()<0.12?r2((Math.random()-0.5)*8):0;sess.counted=r2(st.expected+v);sess.variance=v;sess.closedAt=day+23*36e5;sess.closedBy=opener.id;if(v)postCashVariance(sess)}
   }
   DB.settings.allowNegative=wasBlocked; ME=ME0;
+  if(bm('jobs'))demoJobs(); if(bm('breakdown'))demoBreakdowns();
   audit('demo.data',made+' sample orders over '+days+' days ('+type+')'); save(); return made;
 }
 A['demo-data']=()=>{

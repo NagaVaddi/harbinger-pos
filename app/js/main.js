@@ -2,17 +2,19 @@
 /* Harbinger POS — router, shell, login, boot */
 
 const ROUTES={
-  dashboard:{perm:'dashboard',label:'Command Center',group:'Operate',v:vDashboard},
+  dashboard:{perm:'dashboard',label:'Dashboard',group:'Operate',v:vDashboard},
   catalog:{perm:'catalog',label:'Catalog',group:'Operate',v:vCatalog},
   stock:{perm:'stock',label:'Stock Room',group:'Operate',v:vStock},
   guests:{perm:'guests',label:'Guests',group:'Grow',v:vGuests},
   promos:{perm:'promos',label:'Promotions',group:'Grow',v:vPromos},
   orders:{perm:'orders',label:'Orders',group:'Money',v:vOrders},
   outlets:{perm:'outlets',label:'Outlets & Registers',group:'Money',v:vOutlets},
-  online:{perm:'online',label:'Online & Delivery',group:'Operate',v:vOnline},
+  online:{perm:'online',label:'Online & Delivery',group:'Operate',show:()=>bm('online'),v:vOnline},
+  drivers:{perm:'drivers',label:'Delivery Partners',group:'Operate',show:()=>bm('online')||biz().types.indexOf('delivery')>=0,v:vDrivers},
+  jobs:{perm:'jobs',label:'Job orders',group:'Operate',show:()=>bm('jobs'),v:vJobs},
   accounts:{perm:'accounts',label:'Accounts',group:'Money',v:vAccounts},
   einvoice:{perm:'accounts',label:'E-Invoicing',group:'Money',v:vEinvoice},
-  reports:{perm:'reports',label:'Insights',group:'Money',v:vReports},
+  reports:{perm:'reports',label:'Reports',group:'Money',v:vReports},
   team:{perm:'team',label:'Team',group:'Admin',v:vTeam},
   settings:{perm:'settings',label:'Control Panel',group:'Admin',v:vSettings},
   register:{perm:'register',label:'Register',full:true,v:vRegister},
@@ -20,7 +22,7 @@ const ROUTES={
 };
 const ICONS={dashboard:'M3 12l9-9 9 9M5 10v10h14V10',catalog:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',stock:'M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4M3 17l9 4 9-4',
   guests:'M16 11a4 4 0 10-8 0M4 21c0-4 4-6 8-6s8 2 8 6',promos:'M20 12l-8 8-9-9V3h8l9 9z',orders:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',outlets:'M3 9l2-5h14l2 5M5 9v11h14V9M9 20v-6h6v6',
-  online:'M3 7h18v10H3zM7 11h4M15 11h2M12 3v4',einvoice:'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h4',
+  online:'M3 7h18v10H3zM7 11h4M15 11h2M12 3v4',einvoice:'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h4',jobs:'M9 4h6v3H9zM6 7h12v14H6zM9 12h6M9 16h4',
   accounts:'M5 3h12a2 2 0 012 2v16H7a2 2 0 01-2-2zM9 8h6M9 12h6M9 16h3',reports:'M4 20V10M10 20V4M16 20v-8M22 20H2',team:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',settings:'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12a7 7 0 00-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 00-1.7-1L14.5 3h-4l-.3 3.1a7 7 0 00-1.7 1l-2.4-1-2 3.4L6.1 11a7 7 0 000 2l-2 1.5 2 3.4 2.4-1a7 7 0 001.7 1l.3 3.1h4l.3-3.1a7 7 0 001.7-1l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1z'};
 const ico=n=>'<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="'+ICONS[n]+'"/></svg>';
 
@@ -46,13 +48,13 @@ function bindLogin(){
   });
 }
 function shell(route,content){
-  const groups={}; Object.keys(ROUTES).forEach(k=>{const r=ROUTES[k];if(r.full||!can(r.perm))return;(groups[r.group]=groups[r.group]||[]).push(k)});
+  const groups={}; Object.keys(ROUTES).forEach(k=>{const r=ROUTES[k];if(r.full||!can(r.perm)||(r.show&&!r.show()))return;(groups[r.group]=groups[r.group]||[]).push(k)});
   const nav=Object.keys(groups).map(g=>'<div class="ng">'+esc(tr(g))+'</div>'+groups[g].map(k=>'<a class="ni'+(k===route?' on':'')+'" href="#/'+k+'"'+(k===route?' aria-current="page"':'')+'>'+ico(k)+'<span>'+esc(tr(ROUTES[k].label))+'</span></a>').join('')).join('');
   return '<div class="shell'+(UIS.nav?' navopen':'')+'"><aside class="side" aria-label="Main navigation"><div class="sb"><svg viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg><strong>Harbinger</strong></div><nav>'+nav+'</nav>'+
     '<div class="su"><span>'+esc(ME.name)+'</span><small>'+esc(ME.role)+'</small></div></aside><div class="scrim" data-act="nav-toggle"></div>'+
     '<div class="main"><header class="top"><button type="button" class="menu" data-act="nav-toggle" aria-label="Menu">☰</button><span class="biz">'+esc(DB.settings.business)+'</span><span class="sp"></span>'+
     '<button type="button" class="btn ghost sm" data-act="palette" aria-label="Search and commands">'+tr('Search')+' <kbd class="kb">Ctrl K</kbd></button>'+
-    (can('kitchen')?'<button type="button" class="btn ghost sm" data-act="go-kitchen">'+tr('Kitchen display')+'</button>':'')+
+    (can('kitchen')&&bm('kitchen')?'<button type="button" class="btn ghost sm" data-act="go-kitchen">'+tr('Kitchen display')+'</button>':'')+
     (can('register')?'<button type="button" class="btn primary sm" data-act="go-register">'+tr('Open POS')+'</button>':'')+
     '<button type="button" class="btn ghost sm" data-act="mode-toggle" aria-label="Toggle light and dark mode">◐</button><button type="button" class="btn ghost sm" data-act="lang-toggle" aria-label="Language">'+(LANG==='ar'?'EN':'ع')+'</button><button type="button" class="btn ghost sm" data-act="logout">'+tr('Sign out')+'</button></header>'+
     '<main class="view" id="view">'+content+'</main></div></div>';
@@ -64,7 +66,7 @@ function render(){
   if(!ME){root.innerHTML=loginHtml();bindLogin();return}
   const parts=location.hash.replace(/^#\/?/,'').split('/'); let r=parts[0];
   const def=homeRoute();
-  if(!ROUTES[r]||!can(ROUTES[r].perm)){r=def;if(location.hash&&parts[0]!==''){history.replaceState(null,'','#/'+def)}}
+  if(!ROUTES[r]||!can(ROUTES[r].perm)||(ROUTES[r].show&&!ROUTES[r].show())){r=def;if(location.hash&&parts[0]!==''){history.replaceState(null,'','#/'+def)}}
   document.title=(ROUTES[r].label||'')+' · Harbinger POS';
   if(r==='register')root.innerHTML=vRegister();
   else if(r==='kitchen'){root.innerHTML=vKitchen();kdsAfter()}
@@ -77,7 +79,7 @@ function render(){
   const t=$('.tiles');if(t&&hadScroll)t.scrollTop=hadScroll;
   maybeSetup();
 }
-const homeRoute=()=>can('dashboard')?'dashboard':can('register')?'register':'kitchen';
+const homeRoute=()=>can('dashboard')?'dashboard':can('register')?'register':can('jobs')&&bm('jobs')?'jobs':'kitchen';
 A['go-register']=()=>{location.hash='#/register'};
 A['go-kitchen']=()=>{location.hash='#/kitchen'};
 A.logout=()=>{logout();location.hash='#/';render()};
