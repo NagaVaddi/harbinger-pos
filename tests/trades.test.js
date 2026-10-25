@@ -10,7 +10,7 @@ const files=['vendor/qrcode','core','ui','regions','business','vertical','busine
 const src=files.map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
 const names=['load','A','R','W','UIS','computeTotals','finalizeOrder','balMap','LID','switchBusinessType','BIZ','bm','biz','tr','can','ROLE_SETS','PERMS','parseScan','stockOf','sellableOf','rq','r2',
   'customerLedger','creditBalances','creditBalance','creditAging','creditRoom','creditOwed','postCustomerPayment','jobTotals','jobAdvance','jobBalance','jobOpen','isOverdue','postAdvance','newJobNo','jobHist','jobFlow','doBreakdown','dotAge','recordWarranty',
-  'parseScaleCode','makeScaleCode','scaleCfg','bcCfg','ean13Svg','isEan13','reportGroups','vReportHub','vInvReport','vAccReport','vReports','vJobs','vScaleSetup','vBarcodes','vCreditBook','vBreakdown','vWarranty','vStock','vGuests','vDashboard','genDemoData','demoJobs','demoBreakdowns','scaleOk','bizType','vDrivers','vPromos','vOutlets','vGuests','vCatalog'];
+  'parseScaleCode','makeScaleCode','scaleCfg','bcCfg','ean13Svg','isEan13','reportGroups','vReportHub','vInvReport','vAccReport','vReports','vJobs','vScaleSetup','vBarcodes','vCreditBook','vBreakdown','vWarranty','vStock','vGuests','vDashboard','genDemoData','demoJobs','demoBreakdowns','scaleOk','bizType','vDrivers','vPromos','vOutlets','vGuests','vCatalog','applyStockDelta','countSummary','vStockCount','vStock'];
 const run=new Function(src+';modal=function(){return null};toast=function(){};return {'+names.join(',')+',get DB(){return DB},setME(u){ME=u}};');
 const m=run();m.load();
 let pass=0,fail=0;const ok=(l,c,x)=>{c?pass++:fail++;console.log((c?'PASS ':'FAIL ')+l+(x?' — '+x:''))};
@@ -152,6 +152,17 @@ m.switchBusinessType('restaurant');m.setME(m.DB.users[0]);
 }
 
 ok('catalogue is paginated (10 per page) with Showing x to y of z',m.vCatalog('items').includes('Showing 1 to 10 of')&&m.vCatalog('items').includes('data-act="pg"'));
+
+// ---------- stock count ----------
+m.switchBusinessType('grocery');m.setME(m.DB.users[0]);
+{const DB=m.DB,a=DB.items.find(i=>i.track&&!i.weighed&&m.stockOf(i.id)>5),b=DB.items.find(i=>i.track&&!i.weighed&&i.id!==a.id&&m.stockOf(i.id)>5);
+ const c={id:'cn1',no:'CNT-0001',ts:Date.now(),by:DB.users[0].id,status:'open',blind:true,scopeLabel:'All',lines:[{itemId:a.id,expected:m.stockOf(a.id),counted:m.stockOf(a.id)-3},{itemId:b.id,expected:m.stockOf(b.id),counted:m.stockOf(b.id)+2},{itemId:DB.items[0].id,expected:1,counted:null}]};
+ DB.counts=[c];const S=m.countSummary(c),va=m.stockOf(a.id),vb=m.stockOf(b.id);
+ ok('count summary: 2 counted, shortage and surplus valued at cost',S.counted===2&&S.diffs.length===2&&Math.abs(S.down+3*a.cost)<0.01&&Math.abs(S.up-2*b.cost)<0.01);
+ S.diffs.forEach(x=>m.applyStockDelta(x.it,x.d,c.no));
+ ok('posting a count changes stock by the differences and the books still balance',m.stockOf(a.id)===va-3&&m.stockOf(b.id)===vb+2&&bal()===0);
+ ok('stock count tab renders list',m.vStock('count').includes('Start a stock count')&&m.vStock('count').includes('CNT-0001'));
+}
 
 // ---------- gating ----------
 m.switchBusinessType('restaurant');m.setME(m.DB.users[0]);

@@ -125,3 +125,60 @@ function labelSheet(items,copies,showPrice){
   if(!cells.length){toast('Nothing to print','err');return}
   printHtml('<style>.lblg{display:grid;grid-template-columns:repeat('+cols+',1fr);gap:6px}.lbl{border:1px dashed #bbb;padding:6px;text-align:center;break-inside:avoid;font-family:sans-serif}.ln1{font-size:11px;font-weight:600;margin-bottom:3px;height:26px;overflow:hidden}.ean{width:100%;max-width:170px;height:auto}.lp{font-size:15px;font-weight:700}</style><div class="lblg">'+cells.join('')+'</div>');
 }
+
+/* ================= Stock count (cycle count) =================
+   Start a count for everything or one category, enter what is physically on the shelf (optionally "blind": expected quantities hidden),
+   review the variances with their value, then post. Differences are applied against the quantity expected when the count started,
+   so sales made during the count are not counted as losses. Posting writes stock movements and a stock/wastage journal. */
+const counts=()=>(DB.counts=DB.counts||[]);
+function applyStockDelta(it,delta,reason){
+  if(delta>0){receiveLot(it.id,'CNT-'+Date.now().toString(36),null,delta,it.cost,'Count: '+reason);DB.movements[0].type='adjust';postStockValue(r2(delta*it.cost),'Stock count (+) '+it.name+': '+reason);return r2(delta*it.cost)}
+  let need=-delta,val=0;
+  lotsOf(it.id).forEach(l=>{if(need<=0||l.qty<=0)return;const t=Math.min(l.qty,need);l.qty=rq(l.qty-t);need=rq(need-t);val=r2(val+t*l.cost);logMove(it.id,l.id,'adjust',-t,'Count: '+reason,'')});
+  if(need>0)throw new Error('Not enough stock to remove '+need+' of '+it.name);
+  postStockValue(-val,'Stock count (−) '+it.name+': '+reason);return -val;
+}
+const countVar=l=>l.counted==null?null:rq(l.counted-l.expected);
+function countSummary(c){
+  const rows=c.lines.filter(l=>l.counted!=null), v=rows.map(l=>({l:l,d:countVar(l),it:itemById(l.itemId)})).filter(x=>x.it&&x.d!==0);
+  return {counted:rows.length,total:c.lines.length,diffs:v,down:r2(v.filter(x=>x.d<0).reduce((a,x)=>a+x.d*x.it.cost,0)),up:r2(v.filter(x=>x.d>0).reduce((a,x)=>a+x.d*x.it.cost,0))};
+}
+function vStockCount(){
+  const open=UIS.countOpen&&counts().find(c=>c.id===UIS.countOpen);
+  if(open)return vCountSheet(open);
+  const rows=counts().slice().reverse();
+  return '<div class="card narrow"><h2>Start a stock count</h2><p class="muted sm">Walk the shelves, enter what you find, and post the differences. Use a blind count so counters are not influenced by the system quantity.</p><div id="cntForm"><div class="form2">'+
+    select('What to count','scope',[['all','All tracked items']].concat(DB.categories.map(k=>['c:'+k.id,'Category: '+k.name])),'all')+select('Blind count','blind',[['1','Yes — hide expected quantities'],['0','No — show expected']],'1')+'</div>'+btn('Start count','count-start',null,'primary')+'</div></div>'+
+    '<section class="card mt"><h2>Counts</h2>'+tbl([{h:'Count',r:r=>'<b>'+esc(r.no)+'</b><br><span class="muted sm">'+fmtDT(r.ts)+' · '+esc(userName(r.by))+'</span>'},{h:'Scope',r:r=>esc(r.scopeLabel)},{h:'Items',cls:'r',r:r=>r.lines.length},{h:'Status',r:r=>r.status==='posted'?badge('Posted','ok'):badge('In progress','warn')},
+      {h:'Shortage (value)',cls:'r',r:r=>r.status==='posted'?'<span class="neg">'+fmt(-r.result.down)+'</span>':'—'},{h:'Surplus (value)',cls:'r',r:r=>r.status==='posted'?fmt(r.result.up):'—'},{h:'',cls:'r',r:r=>btn(r.status==='posted'?'View':'Continue','count-open',r.id)}],rows,'No counts yet.')+'</section>';
+}
+function vCountSheet(c){
+  const posted=c.status==='posted', S=countSummary(c);
+  return '<p class="sm"><a href="#" data-act="count-close">← All counts</a></p><div class="kpis"><div class="kpi"><span class="kl">Count</span><strong>'+esc(c.no)+'</strong></div><div class="kpi"><span class="kl">Counted</span><strong>'+S.counted+' / '+S.total+'</strong></div><div class="kpi"><span class="kl">Shortage (value)</span><strong class="neg">'+money(-S.down)+'</strong></div><div class="kpi"><span class="kl">Surplus (value)</span><strong>'+money(S.up)+'</strong></div></div>'+
+    '<div class="bar">'+(posted?'':btn('Post differences','count-post',c.id,'primary')+btn('Count everything as expected','count-fill',c.id)+btn('Cancel count','count-cancel',c.id,'danger'))+'<span class="sp"></span></div>'+
+    tbl([{h:'Item',r:r=>'<b>'+esc((itemById(r.itemId)||{}).name||'?')+'</b>'},{h:'Expected',cls:'r',r:r=>c.blind&&!posted&&r.counted==null?'—':r.expected},
+      {h:'Counted',cls:'r',r:r=>posted?(r.counted==null?'—':r.counted):'<input class="cnt" type="number" step="any" min="0" data-in="cnt" data-cid="'+c.id+'" data-iid="'+r.itemId+'" value="'+(r.counted==null?'':r.counted)+'" aria-label="Counted quantity">'},
+      {h:'Difference',cls:'r',r:r=>{const d=countVar(r);return d==null?'':'<span class="'+(d<0?'neg':d>0?'pos':'')+'">'+(d>0?'+':'')+d+'</span>'}}],c.lines,'')+
+    (posted?'<p class="muted sm">Posted '+fmtDT(c.postedAt)+'. Variances are in Reports → Stock adjustments.</p>':'<p class="muted sm">Quantities save as you type. Items you leave empty are not adjusted.</p>');
+}
+I.cnt=el=>{const c=counts().find(x=>x.id===el.dataset.cid),l=c&&c.lines.find(x=>x.itemId===el.dataset.iid);if(l&&c.status==='open'){l.counted=el.value===''?null:Math.max(0,rq(num(el.value)));save()}};
+A['count-start']=()=>{
+  const f=formData($('#cntForm')), cat=f.scope.indexOf('c:')===0?f.scope.slice(2):null;
+  const items=DB.items.filter(i=>i.active&&i.track&&(!cat||i.categoryId===cat)).sort((a,b)=>a.name.localeCompare(b.name)); if(!items.length){toast('No tracked items in that scope','err');return}
+  DB.seq.count=(DB.seq.count||0)+1;
+  const c={id:uid('cn'),no:'CNT-'+String(DB.seq.count).padStart(4,'0'),ts:now(),by:ME.id,status:'open',blind:f.blind!=='0',scopeLabel:cat?'Category: '+catName(cat):'All tracked items',lines:items.map(i=>({itemId:i.id,expected:stockOf(i.id),counted:null}))};
+  counts().push(c);UIS.countOpen=c.id;audit('count.start',c.no);save();render();
+};
+A['count-open']=d=>{UIS.countOpen=d.id;render()};
+A['count-close']=()=>{UIS.countOpen=null;render()};
+A['count-fill']=d=>{const c=counts().find(x=>x.id===d.id);if(c&&c.status==='open'){c.lines.forEach(l=>{if(l.counted==null)l.counted=l.expected});save();render()}};
+A['count-cancel']=d=>confirmBox('Cancel this count? Nothing is adjusted.',()=>{DB.counts=counts().filter(x=>x.id!==d.id);UIS.countOpen=null;audit('count.cancel',d.id);save();render()},'Cancel count');
+A['count-post']=d=>{
+  const c=counts().find(x=>x.id===d.id); if(!c||c.status!=='open')return; const S=countSummary(c);
+  if(!S.counted){toast('Enter at least one counted quantity','err');return}
+  if(Math.abs(S.down)+S.up>200&&!can('discount_override')){toast('Large differences need a manager to post','err');return}
+  confirmBox('Post '+S.diffs.length+' differences ('+money(-S.down)+' shortage, '+money(S.up)+' surplus)? Stock and the books are adjusted.',()=>{
+    try{S.diffs.forEach(x=>applyStockDelta(x.it,x.d,c.no))}catch(e){toast(e.message,'err');return}
+    c.status='posted';c.postedAt=now();c.postedBy=ME.id;c.result={up:S.up,down:S.down,items:S.diffs.length};audit('count.post',c.no+' '+S.diffs.length+' diffs');save();toast('Count posted');render();
+  },'Post');
+};

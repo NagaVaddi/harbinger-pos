@@ -60,7 +60,7 @@ function save(){
   try{localStorage.setItem(KEY,JSON.stringify(DB))}
   catch(e){ if(typeof toast==='function')toast('Could not save: browser storage is full or blocked.','err') }
 }
-function migrate(){ DB.drivers=DB.drivers||[]; DB.jobs=DB.jobs||[]; DB.warranty=DB.warranty||[]; DB.breakdowns=DB.breakdowns||[]; DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0}; if(DB.seq.job==null)DB.seq.job=0;
+function migrate(){ DB.counts=DB.counts||[]; DB.drivers=DB.drivers||[]; DB.jobs=DB.jobs||[]; DB.warranty=DB.warranty||[]; DB.breakdowns=DB.breakdowns||[]; DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0}; if(DB.seq.job==null)DB.seq.job=0;
   if(DB.settings.blockExpired===undefined)DB.settings.blockExpired=true;
   if(!DB.settings.businessType)DB.settings.businessType='restaurant';
   if(typeof ensureAccounts==='function')ensureAccounts();
