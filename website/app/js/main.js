@@ -22,7 +22,7 @@ const ROUTES={
 };
 const ICONS={dashboard:'M3 12l9-9 9 9M5 10v10h14V10',catalog:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',stock:'M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4M3 17l9 4 9-4',
   guests:'M16 11a4 4 0 10-8 0M4 21c0-4 4-6 8-6s8 2 8 6',promos:'M20 12l-8 8-9-9V3h8l9 9z',orders:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',outlets:'M3 9l2-5h14l2 5M5 9v11h14V9M9 20v-6h6v6',
-  online:'M3 7h18v10H3zM7 11h4M15 11h2M12 3v4',einvoice:'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h4',jobs:'M9 4h6v3H9zM6 7h12v14H6zM9 12h6M9 16h4',
+  online:'M3 7h18v10H3zM7 11h4M15 11h2M12 3v4',einvoice:'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h4',jobs:'M9 4h6v3H9zM6 7h12v14H6zM9 12h6M9 16h4',drivers:'M5 17a2.5 2.5 0 1 0 0 .01M19 17a2.5 2.5 0 1 0 0 .01M7.5 17h6l3-7h-4M12 6h3',
   accounts:'M5 3h12a2 2 0 012 2v16H7a2 2 0 01-2-2zM9 8h6M9 12h6M9 16h3',reports:'M4 20V10M10 20V4M16 20v-8M22 20H2',team:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',settings:'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12a7 7 0 00-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 00-1.7-1L14.5 3h-4l-.3 3.1a7 7 0 00-1.7 1l-2.4-1-2 3.4L6.1 11a7 7 0 000 2l-2 1.5 2 3.4 2.4-1a7 7 0 001.7 1l.3 3.1h4l.3-3.1a7 7 0 001.7-1l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1z'};
 const ico=n=>'<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="'+ICONS[n]+'"/></svg>';
 
