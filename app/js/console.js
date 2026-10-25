@@ -12,36 +12,6 @@ function tabs(base,list,cur){
 const head=(title,sub,actions)=>'<div class="ph"><div><h1>'+esc(title)+'</h1>'+(sub?'<p class="muted">'+esc(sub)+'</p>':'')+'</div><div class="pa">'+(actions||'')+'</div></div>';
 const btn=(label,act,id,cls)=>'<button type="button" class="btn '+(cls||'ghost')+'" data-act="'+act+'"'+(id?' data-id="'+esc(id)+'"':'')+'>'+esc(label)+'</button>';
 
-/* ================= Dashboard ================= */
-function vDashboard(){
-  const done=completed(), today=dayKey(now()), yest=dayKey(now()-864e5);
-  const T=done.filter(o=>dayKey(o.ts)===today), Y=done.filter(o=>dayKey(o.ts)===yest);
-  const rev=a=>r2(a.reduce((s,o)=>s+o.total,0));
-  const delta=(a,b)=>b>0?Math.round((a-b)/b*100):(a>0?100:0);
-  const kp=(label,val,d,hint)=>'<div class="kpi"><span class="kl">'+esc(label)+'</span><strong>'+val+'</strong><span class="kd '+(d>=0?'up':'dn')+'">'+(d>=0?'▲ ':'▼ ')+Math.abs(d)+'% vs yesterday</span><span class="muted sm">'+esc(hint||'')+'</span></div>';
-  const guests=new Set(T.filter(o=>o.customerId).map(o=>o.customerId)).size;
-  const aov=T.length?rev(T)/T.length:0, aovY=Y.length?rev(Y)/Y.length:0;
-  const days=[]; for(let i=6;i>=0;i--){const k=dayKey(now()-i*864e5);const d=new Date(now()-i*864e5);days.push({label:d.toLocaleDateString('en-GB',{weekday:'short'}),value:rev(done.filter(o=>dayKey(o.ts)===k))})}
-  const week=done.filter(o=>o.ts>now()-7*864e5), agg={};
-  week.forEach(o=>o.lines.forEach(l=>{const a=agg[l.itemId]||(agg[l.itemId]={name:l.name,qty:0,rev:0});a.qty+=l.qty;a.rev=r2(a.rev+l.qty*l.price)}));
-  const top=Object.keys(agg).map(k=>agg[k]).sort((a,b)=>b.rev-a.rev).slice(0,5);
-  const low=DB.items.filter(i=>i.active&&i.track&&stockOf(i.id)<=i.reorder);
-  const exp=DB.lots.filter(l=>l.qty>0&&l.expiry&&l.expiry<daysFromNow(14)).sort((a,b)=>a.expiry-b.expiry);
-  const open=DB.sessions.filter(x=>!x.closedAt);
-  const alerts=[];
-  low.forEach(i=>alerts.push('<li class="warn"><b>Low stock</b> · '+esc(i.name)+' — '+stockOf(i.id)+' left (reorder at '+i.reorder+') <a href="#/stock/receive">Receive</a></li>'));
-  exp.slice(0,6).forEach(l=>{const it=itemById(l.itemId);alerts.push('<li class="'+(l.expiry<now()?'bad':'warn')+'"><b>'+(l.expiry<now()?'Expired':'Expiring')+'</b> · '+esc(it?it.name:'?')+' lot '+esc(l.lotNo)+' — '+fmtDate(l.expiry)+' ('+l.qty+' units)</li>')});
-  open.filter(x=>now()-x.openedAt>12*36e5).forEach(x=>{const c=byId(DB.counters,x.counterId);alerts.push('<li class="warn"><b>Long-open register</b> · '+esc(c?c.name:'')+' open since '+fmtDT(x.openedAt)+'</li>')});
-  const recent=DB.orders.slice(-8).reverse();
-  return head('Command Center','Live view of '+DB.settings.business,btn('Open Register','go-register',null,'primary'))+
-  '<div class="kpis">'+kp('Today\'s sales',money(rev(T)),delta(rev(T),rev(Y)),T.length+' orders')+kp('Orders',T.length,delta(T.length,Y.length),'completed today')+
-  kp('Average order',money(aov),delta(aov,aovY),'per order')+kp('Guests identified',guests,0,'with profile')+'</div>'+
-  briefHtml()+'<div class="cols2 mt"><section class="card"><h2>Sales — last 7 days</h2>'+barChart(days,{label:'Sales last 7 days'})+'</section>'+
-  '<section class="card"><h2>Alerts <span class="count">'+alerts.length+'</span></h2>'+(alerts.length?'<ul class="alerts">'+alerts.join('')+'</ul>':'<div class="empty">All clear. No alerts.</div>')+'</section></div>'+
-  '<div class="cols2"><section class="card"><h2>Top items (7 days)</h2>'+tbl([{h:'Item',r:r=>esc(r.name)},{h:'Qty',cls:'r',r:r=>r.qty},{h:'Sales',cls:'r',r:r=>fmt(r.rev)}],top,'No sales in the last 7 days.')+'</section>'+
-  '<section class="card"><h2>Recent orders</h2>'+tbl([{h:'#',r:r=>esc(r.no)},{h:'Time',r:r=>fmtDT(r.ts)},{h:'Total',cls:'r',r:r=>fmt(r.total)},{h:'Status',r:r=>badge(r.status,r.status==='completed'?'ok':'bad')}],recent,'No orders yet — open the register and make a sale.')+'</section></div>';
-}
-
 /* ================= Catalog ================= */
 function vCatalog(tab){
   tab=tab||'items';
@@ -462,7 +432,7 @@ function vSettings(){
   '<h2>Discount caps (max % without manager approval)</h2><div class="form2">'+field('Admin %','capA',s.caps.admin,{type:'number',min:0})+field('Manager %','capM',s.caps.manager,{type:'number',min:0})+field('Cashier %','capC',s.caps.cashier,{type:'number',min:0})+'</div>'+
   '<h2>Appearance & behaviour</h2><div class="form2">'+select('Brand theme','theme',[['A','Theme A — blue & cyan (default)'],['B','Theme B — navy & red']],s.theme)+select('Mode','mode',[['auto','Match device'],['light','Light'],['dark','Dark']],s.mode)+'</div>'+
   check('Allow selling below zero stock','allowNegative',s.allowNegative)+'<div class="bar mt"><button class="btn primary" type="submit">Save settings</button></div></form>'+
-  '<section class="card narrow mt"><h2>Data</h2><p class="muted sm">This demo stores data in this browser only. Back up regularly.</p><div class="bar">'+btn('Download backup (JSON)','backup')+btn('Restore from backup','restore')+btn('Reset to demo data','reset','', 'danger')+'</div></section>'+
+  '<section class="card narrow mt"><h2>Data</h2><p class="muted sm">This demo stores data in this browser only. Back up regularly.</p><div class="bar">'+btn('Download backup (JSON)','backup')+btn('Restore from backup','restore')+btn('Load sample sales','demo-data')+btn('Reset to demo data','reset','', 'danger')+'</div></section>'+
   '<section class="card narrow mt"><h2>Audit log</h2>'+tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'User',r:r=>esc(userName(r.user))},{h:'Action',r:r=>esc(r.action)},{h:'Detail',r:r=>esc(r.detail)}],DB.audit.slice(0,40),'No activity yet.')+'</section>';
 }
 function bindSettings(){
@@ -477,7 +447,7 @@ function bindSettings(){
     audit('settings.save','');save();applyTheme();toast('Settings saved');render();
   });
 }
-A.backup=()=>{const b=new Blob([JSON.stringify(DB)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='harbinger-backup-'+dayKey(now())+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
+A.backup=()=>{DB.lastBackup=now();save();const b=new Blob([JSON.stringify(DB)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='harbinger-backup-'+dayKey(now())+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
 A.restore=()=>modal({title:'Restore backup',body:'<p class="warn-t">This replaces ALL current data.</p><input type="file" name="f" accept=".json,application/json" autofocus>',actions:[{label:'Cancel'},{label:'Restore',cls:'danger',fn:el=>{
   const f=$('[name=f]',el).files[0]; if(!f){toast('Choose a backup file','err');return false}
   const rd=new FileReader(); rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!d||!d.settings||!Array.isArray(d.items)||!Array.isArray(d.users)||!d.users.length)throw 0;DB=d;migrate();save();logout();toast('Backup restored — please sign in again');location.hash='#/';render()}catch(e){toast('That file is not a valid Harbinger backup','err')}};rd.readAsText(f)}}]});

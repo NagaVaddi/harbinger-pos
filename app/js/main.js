@@ -33,7 +33,7 @@ function loginHtml(){
   return '<div class="login"><div class="lcard"><div class="lbrand"><svg viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg><div><strong>Harbinger POS</strong><span>An innovation partner</span></div></div>'+
     '<div style="text-align:end"><button type="button" class="btn ghost sm" data-act="lang-toggle">'+(LANG==='ar'?'English':'العربية')+'</button></div><h1>'+tr('Sign in')+'</h1><form id="loginForm" autocomplete="on"><label>'+tr('Username')+'<input name="username" autocomplete="username" required autofocus></label>'+
     '<label>'+tr('Password')+'<input name="password" type="password" autocomplete="current-password" required></label><p class="err" id="loginErr" role="alert"></p><button class="btn primary block" type="submit">'+tr('Sign in')+'</button></form>'+
-    '<p class="demo">Demo accounts — <b>admin</b> / admin123 · <b>manager</b> / manager123 · <b>cashier</b> / cashier123. Change these in Team before real use. Data is stored in this browser only.</p></div></div>';
+    '<p class="demo warnbox"><b>Demo only — do not enter real customer or business data.</b> Everything is stored in this browser and the passwords below are public.</p><p class="demo">Demo accounts — <b>admin</b> / admin123 · <b>manager</b> / manager123 · <b>cashier</b> / cashier123. Change these in Team before real use. Data is stored in this browser only.</p></div></div>';
 }
 function bindLogin(){
   const f=$('#loginForm'); if(!f)return;
