@@ -109,9 +109,9 @@ function vDashboard(){
       '<li><span>'+esc(DB.settings.taxLabel||'Tax')+' payable (output − input)</span><b>'+money(vat)+'</b></li>'+
       '<li><span>Net profit this month</span><b class="'+(mt.t.net<0?'neg':'pos')+'">'+money(mt.t.net)+'</b><small><a href="#/accounts/pl">P&amp;L</a></small></li></ul></section>';
   }
-  const empty=!DB.orders.length?'<section class="card emptycard"><h2>No sales yet</h2><p class="muted">Open the register and make a sale, or load 2 weeks of realistic sample sales to see every chart and report working.</p><div class="bar">'+btn('Open Register','go-register',null,'primary')+(can('settings')?btn('Load sample sales (14 days)','demo-data'):'')+'</div></section>':'';
+  const empty=!DB.orders.length?'<section class="card emptycard"><h2>No sales yet</h2><p class="muted">Open the register and make a sale, or load 2 weeks of realistic sample sales to see every chart and report working.</p><div class="bar">'+btn(tr('Open POS'),'go-register',null,'primary')+(can('settings')?btn('Load sample sales (14 days)','demo-data'):'')+'</div></section>':'';
   const rangeBar='<div class="segs rng" role="group" aria-label="Period">'+D_RANGES.map(r=>'<button type="button" class="seg'+(rng===r[0]?' on':'')+'" data-act="dash-range" data-id="'+r[0]+'">'+r[1]+'</button>').join('')+'</div>';
-  return head('Command Center',DB.settings.business+' · '+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'}),rangeBar+btn('Open Register','go-register',null,'primary'))+
+  return head('Command Center',DB.settings.business+' · '+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'}),rangeBar+btn(tr('Open POS'),'go-register',null,'primary'))+
     empty+kpis+briefHtml()+
     '<div class="cols2 mt"><section class="card"><h2>Sales trend <span class="muted sm">'+(R_.hourly?'by hour':'by day')+' · dashed line = '+esc(R_.label.replace('vs ',''))+'</span></h2>'+lineChart(labels,sc,sp,v=>fmt(v).replace(/\.0+$/,'').replace(/(\.\d)0$/,'$1'))+'</section>'+
     '<section class="card"><h2>Busy hours <span class="muted sm">last 4 weeks</span></h2>'+heatmap(DB.orders.filter(o=>o.ts>now()-28*864e5))+'</section></div>'+
