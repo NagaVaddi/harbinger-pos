@@ -6,7 +6,7 @@
 const MOD0={kitchen:0,tables:0,online:1,delivery:1,scanFirst:0,weighed:0,expiry:0,rx:0,insurance:0,provider:0,variants:0};
 const BIZ={
   restaurant:{name:'Restaurant / Café',desc:'Tables, kitchen display, dine-in, takeaway and delivery',icon:'🍽️',modules:{kitchen:1,tables:1,expiry:1},types:['dine-in','takeaway','delivery'],defType:'takeaway',minMargin:15,blockExpired:true,
-    terms:{},dash:[['brief'],['trend','heat'],['mixCh','mixPay','mixCat'],['top','leaders'],['ops','money'],['recent']]},
+    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer'},dash:[['brief'],['trend','heat'],['mixCh','mixPay','mixCat'],['top','leaders'],['ops','money'],['recent']]},
   supermarket:{name:'Supermarket / Grocery',desc:'Barcode-first checkout, weighed items, expiry control, home delivery',icon:'🛒',modules:{scanFirst:1,weighed:1,expiry:1},types:['takeaway','delivery'],defType:'takeaway',minMargin:8,blockExpired:true,
     terms:{'Guests':'Customers','+ Guest':'+ Customer','Takeaway':'In-store','Delivery':'Home delivery','Catalog':'Products','Stock Room':'Inventory','Guest':'Customer'},
     dash:[['brief'],['trend','basket'],['fastslow','expiry'],['stockout','mixCat'],['mixPay','leaders'],['ops','money'],['recent']]},
@@ -97,7 +97,7 @@ function buildCatalog(type,t){
   const cats=D.cats.map((c,i)=>({id:'c'+(i+1),name:c[0],nameAr:c[1]||''})), items=[], lots=[], movements=[];
   D.items.forEach((r,i)=>{
     const o=r[5]||{}, it={id:'i'+(i+1),name:r[0],nameAr:r[1]||'',sku:D.prefix+String(i+1).padStart(3,'0'),barcode:'6290'+D.code+String(i+1).padStart(5,'0'),categoryId:'c'+(r[2]+1),price:r[3],cost:r[4],
-      tax:o.tax!==false,track:o.track!==false,reorder:o.reorder!=null?o.reorder:(o.weighed?5:10),active:true,unit:o.unit||(o.weighed?'kg':'pcs'),weighed:!!o.weighed,plu:o.plu||'',rx:!!o.rx,controlled:!!o.controlled,kind:o.kind||'product',group:o.group||'',variant:o.variant||''};
+      tax:o.tax!==false,track:o.track!==false,reorder:o.reorder!=null?o.reorder:(o.weighed?5:10),active:true,unit:o.unit||(o.weighed?'kg':'pcs'),weighed:!!o.weighed,plu:o.plu||'',rx:!!o.rx,controlled:!!o.controlled,kind:o.kind||'product',group:o.group||'',variant:o.variant||'',size:o.size||'',brand:o.brand||'',serial:!!o.serial,warrantyMonths:o.warranty||0};
     items.push(it);
     if(it.track){
       const qty=o.qty!=null?o.qty:(o.weighed?60:30+((i*7)%70)), days=o.exp===null?null:(o.exp!=null?o.exp:D.exp), lot={id:'l'+(i+1),itemId:it.id,lotNo:D.prefix+'-'+(1000+i),expiry:days==null?null:t+days*864e5,qty:qty,cost:it.cost,receivedAt:t};

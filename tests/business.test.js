@@ -4,7 +4,7 @@ const dir=path.join(__dirname,'..','website','app','js')+'/';
 global.localStorage={_d:{},getItem(k){return this._d[k]||null},setItem(k,v){this._d[k]=v}};global.sessionStorage=global.localStorage;
 global.document={addEventListener(){},querySelector(){return null},querySelectorAll(){return[]},documentElement:{setAttribute(k,v){this[k]=v}}};
 global.window={addEventListener(){},open(){}};global.location={hash:'',protocol:'file:',origin:'null'};global.matchMedia=()=>({matches:false});global.render=()=>{};
-const files=['vendor/qrcode','core','ui','regions','business','vertical','console','accounts','einvoice','insights','dashboard','online','register'];
+const files=['vendor/qrcode','core','ui','regions','business','vertical','business_trades','trades','partners','reports_hub','stock_config','console','accounts','einvoice','insights','dashboard','online','register'];
 const src=files.map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
 const names='load,A,R,regReset,computeTotals,finalizeOrder,balMap,LID,switchBusinessType,BIZ,bizType,bm,biz,tr,typeLabel,rolesForType,roleLabel,ROLE_SETS,PERMS,can,parseScan,pushLine,tilesHtml,sellableOf,stockOf,rq,vDashboard,vSettings,vReports,vAccounts,vTeam,itemForm,guestForm,genDemoData,logRx,vRxRegister,vProviderReport,providerRevenue,insurerLedger,vClaims,claimsOutstanding,expiryBuckets,applyCountry,stockLeft,postVoucher,postStockRevaluation,bizBriefing,briefing,buildCatalog,sessionStats'.split(',');
 const run=new Function(src+';modal=function(){return null};toast=function(){};return {'+names.join(',')+',get DB(){return DB},setME(u){ME=u}};');
@@ -46,7 +46,7 @@ for(const t of TYPES){
 m.switchBusinessType('clinic');ok('clinic wording: Patients / Outpatient / Bills / Billing',m.tr('Guests')==='Patients'&&m.tr('Takeaway')==='Outpatient'&&m.tr('Orders')==='Bills'&&m.tr('Harbinger Register')==='Harbinger Billing');
 m.switchBusinessType('supermarket');ok('supermarket wording: Customers / In-store / Inventory',m.tr('Guests')==='Customers'&&m.tr('Takeaway')==='In-store'&&m.tr('Stock Room')==='Inventory');
 m.switchBusinessType('salon');ok('salon wording: Clients / Walk-in / Appointment',m.tr('Guests')==='Clients'&&m.tr('Takeaway')==='Walk-in'&&m.tr('Dine-in')==='Appointment');
-m.switchBusinessType('restaurant');ok('restaurant keeps the default wording',m.tr('Guests')==='Guests'&&m.tr('Dine-in')==='Dine-in');
+m.switchBusinessType('restaurant');ok('restaurant uses Customers and keeps Dine-in',m.tr('Guests')==='Customers'&&m.tr('Dine-in')==='Dine-in');
 
 // ---- dashboards are genuinely different per business type ----
 ok('each dashboard has its own signature panel',results.supermarket.html.includes('Basket size')&&results.supermarket.html.includes('Expiry watch')&&results.pharmacy.html.includes('Prescription vs over-the-counter')&&results.clinic.html.includes('Doctors &amp; departments')&&results.clinic.html.includes('Payer mix')&&results.salon.html.includes('Stylists &amp; therapists')&&results.retail.html.includes('Sell-through')&&results.restaurant.html.includes('Where sales come from'));

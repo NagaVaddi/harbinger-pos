@@ -60,7 +60,7 @@ function save(){
   try{localStorage.setItem(KEY,JSON.stringify(DB))}
   catch(e){ if(typeof toast==='function')toast('Could not save: browser storage is full or blocked.','err') }
 }
-function migrate(){ DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0};
+function migrate(){ DB.drivers=DB.drivers||[]; DB.jobs=DB.jobs||[]; DB.warranty=DB.warranty||[]; DB.breakdowns=DB.breakdowns||[]; DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0}; if(DB.seq.job==null)DB.seq.job=0;
   if(DB.settings.blockExpired===undefined)DB.settings.blockExpired=true;
   if(!DB.settings.businessType)DB.settings.businessType='restaurant';
   if(typeof ensureAccounts==='function')ensureAccounts();
@@ -121,11 +121,12 @@ function seed(type){
 
 /* ---------- auth & permissions ---------- */
 const PERMS={
-  admin:['dashboard','catalog','stock','guests','promos','team','outlets','orders','reports','settings','register','refund','discount_override','voucher','accounts','kitchen','online','controlled'],
-  manager:['dashboard','catalog','stock','guests','promos','outlets','orders','reports','register','refund','discount_override','voucher','kitchen','online','controlled'],
+  admin:['dashboard','catalog','stock','guests','promos','team','outlets','orders','reports','settings','register','refund','discount_override','voucher','accounts','kitchen','online','controlled','jobs','drivers'],
+  manager:['dashboard','catalog','stock','guests','promos','outlets','orders','reports','register','refund','discount_override','voucher','kitchen','online','controlled','jobs','drivers'],
   kitchen:['kitchen'],
   accountant:['dashboard','accounts','reports','orders'],
-  cashier:['register','guests','orders','online'],
+  cashier:['register','guests','orders','online','jobs'],
+  technician:['jobs'],
   waiter:['register','orders'],
   stock_keeper:['stock'],
   pharmacist:['register','guests','orders','stock','online','controlled'],
@@ -161,13 +162,13 @@ function receiveLot(itemId,lotNo,expiry,qty,cost,ref){
   DB.lots.push(lot); logMove(itemId,lot.id,'receive',qty,ref||'Receive',''); return lot;
 }
 /* FEFO deduction. Returns allocations [{lotId,qty}] */
-function deductStock(itemId,qty,ref){
+function deductStock(itemId,qty,ref,mvType){
   let need=qty; const allocs=[];
   for(const l of lotsOf(itemId)){
     if(need<=0)break; if(l.qty<=0)continue;
     if(DB.settings.blockExpired&&isExpired(l))continue;
     const take=Math.min(l.qty,need); l.qty=rq(l.qty-take); need=rq(need-take);
-    allocs.push({lotId:l.id,qty:take}); logMove(itemId,l.id,'sale',-take,ref,'');
+    allocs.push({lotId:l.id,qty:take}); logMove(itemId,l.id,mvType||'sale',-take,ref,'');
   }
   if(need>0){
     let l=DB.lots.filter(x=>x.itemId===itemId).sort((a,b)=>b.receivedAt-a.receivedAt)[0];

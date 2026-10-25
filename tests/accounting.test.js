@@ -3,7 +3,7 @@ const dir=require('path').join(__dirname,'..','website','app','js')+'/';
 global.localStorage={_d:{},getItem(k){return this._d[k]||null},setItem(k,v){this._d[k]=v}};global.sessionStorage=global.localStorage;
 global.document={addEventListener(){},querySelector(){return null},querySelectorAll(){return[]}};
 global.window={addEventListener(){}};global.location={hash:''};global.matchMedia=()=>({matches:false});global.render=()=>{};
-const src=['core','ui','regions','business','vertical','console','accounts','register'].map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
+const src=['core','ui','regions','business','vertical','business_trades','trades','partners','reports_hub','stock_config','console','accounts','register'].map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
 const names='load,R,completeSale,computeTotals,postRefund,returnStock,balMap,plData,LID,lg,natureOf,postVoucher,postPurchase,postStockValue,postCashVariance,vTB,vBS,vPL,vSetup,vDayBook,vChart,vOutstanding,vVatAcc,vBooks,receiveLot,cancelVoucher,vAccounts,vLedgerStmt'.split(',');
 const run=new Function(src+';modal=function(){return null};toast=function(){};return {'+names.join(',')+',get DB(){return DB},setME(u){ME=u}};');
 const m=run();m.load();const DB=m.DB;m.setME(DB.users[0]);

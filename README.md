@@ -18,7 +18,7 @@ Cloud point-of-sale and franchise control platform for restaurants and retail in
 * **With online ordering:** `node server/gateway.js` (Node 18+), then open http://localhost:8787/app/ — the first start prints the gateway API key.
 
 ## Business types — each business gets its own system
-Chosen when the account is created (and in Settings): **Restaurant / café · Supermarket / grocery · Retail store · Pharmacy · Clinic / hospital billing · Salon / spa**. The type decides the wording (Guests → Customers / Patients / Clients), the screens, the register behaviour, the staff roles that can be created, the sample catalogue and a **dedicated dashboard**:
+Chosen when the account is created (and in Settings): **Restaurant / café · Supermarket / grocery · Retail store · Pharmacy · Clinic / hospital billing · Salon / spa · Tailor / stitching · Butcher · Grocery · Garage · Tyre shop**. The type decides the wording (Guests → Customers / Patients / Clients), the screens, the register behaviour, the staff roles that can be created, the sample catalogue and a **dedicated dashboard**:
 
 | Type | Register & stock | Dashboard highlights |
 |---|---|---|
@@ -28,6 +28,17 @@ Chosen when the account is created (and in Settings): **Restaurant / café · Su
 | Pharmacy | prescriptions, controlled drugs with pharmacist approval, batch & expiry (expired stock blocked), insurance | Rx vs OTC, prescription register, expiry risk, claims |
 | Clinic / hospital billing | services by department, doctors, insurance co-pay and claims — **billing only, no medical records** | revenue by department/doctor, payer mix, claims outstanding |
 | Salon / spa | services by stylist, commissions | stylist leaderboard, repeat clients, commission payable |
+| Tailor / stitching | job orders with measurements, due dates, advance and balance (advance held as a liability until delivery), tailor commissions | jobs by stage, due & overdue, advances held, customer credit |
+| Butcher | weighed cuts, cutting-note presets, carcass breakdown with cost allocation and yield, short shelf life | cutting yield and waste, kilos sold, customer credit |
+| Grocery | scan-first, weighed produce, customer credit (khata) with limits and ageing, expiry | basket size, credit ageing, low stock |
+| Garage | job cards with vehicle, estimate → approval → ready, parts and labour, mechanics (technician role), next-service reminders, fleet credit | open job cards, service reminders, labour vs parts |
+| Tyre shop | size/brand search, DOT code per tyre, warranty register, vehicle plate and history, fitting services, fleet credit | tyre sizes sold, brand mix, warranties active |
+
+## Reports, stock tools and partners
+- **Reports** opens a landing page of grouped cards: Accounts reports (Accounts summary with receivables ageing, Stock report reconciled to the books, tax summary, Day Book, P&L, Balance Sheet, Trial Balance, Cash/Bank Book, Outstanding), Inventory reports (Stock report, Item activity, Stock adjustments & wastage, Expiry / batch report, valuation, reorder) and Sales & operations.
+- **Stock Room** has Weighing Management (scale label format: prefix, PLU digits, weight or price, check digit; PLU list; CSV for the scale; test box) and Barcode Config (scanner rules, internal EAN-13 numbering, shelf-label printing).
+- **Delivery Partners** (own riders), **Counters** (staff, shifts, active session), **Promo codes**, **Offers & discounts** and **Customers** have searchable tables with status and created dates; long tables are paginated.
+
 
 ## Countries
 Profiles for UAE, KSA, Bahrain, Oman, Kuwait, Qatar, plus Egypt, Jordan, UK, India, US and a custom option: currency, decimals (BHD/OMR/KWD use 3), tax rate/label, WhatsApp dial code, e-invoicing region. Optional service charge / municipality fees. Rates and rules change — confirm with your tax authority.

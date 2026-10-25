@@ -34,7 +34,7 @@ function applyCountry(code,keepBiz){
 
 /* ================= Languages ================= */
 const AR={
-  'Command Center':'مركز القيادة','Catalog':'الأصناف','Stock Room':'المخزون','Guests':'العملاء','Promotions':'العروض','Orders':'الطلبات','Outlets & Registers':'الفروع والصناديق','Insights':'التقارير',
+  'Dashboard':'لوحة التحكم','Catalog':'الأصناف','Stock Room':'المخزون','Guests':'العملاء','Promotions':'العروض','Orders':'الطلبات','Outlets & Registers':'الفروع والصناديق','Insights':'التقارير',
   'Accounts':'الحسابات','E-Invoicing':'الفوترة الإلكترونية','Team':'الفريق','Control Panel':'لوحة التحكم','Online & Delivery':'الطلبات الإلكترونية والتوصيل',
   'Operate':'التشغيل','Grow':'النمو','Money':'المالية','Admin':'الإدارة',
   'Search':'بحث','Kitchen display':'شاشة المطبخ','Open POS':'فتح نقطة البيع','Sign out':'تسجيل الخروج',

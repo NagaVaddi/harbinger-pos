@@ -8,13 +8,17 @@ const S=require('./security');
 const {normalize}=require('../channels');
 
 /* ---------- roles & collection policy (enforced on the server) ---------- */
-const ROLES=['owner','admin','manager','cashier','waiter','kitchen','accountant','stock_keeper','pharmacist','billing'];
+const ROLES=['owner','admin','manager','cashier','waiter','kitchen','accountant','stock_keeper','pharmacist','billing','technician'];
 /* The business type is chosen when the account is created. It decides which staff roles can exist and which data collections exist at all. */
-const BIZ_TYPES=['restaurant','supermarket','retail','pharmacy','clinic','salon'];
+const BIZ_TYPES=['restaurant','supermarket','retail','pharmacy','clinic','salon','tailor','butcher','grocery','garage','tyre'];
 const ROLE_SETS={restaurant:['admin','manager','cashier','waiter','kitchen','accountant'],supermarket:['admin','manager','cashier','stock_keeper','accountant'],retail:['admin','manager','cashier','stock_keeper','accountant'],
-  pharmacy:['admin','manager','pharmacist','cashier','stock_keeper','accountant'],clinic:['admin','manager','billing','pharmacist','stock_keeper','accountant'],salon:['admin','manager','cashier','accountant']};
+  pharmacy:['admin','manager','pharmacist','cashier','stock_keeper','accountant'],clinic:['admin','manager','billing','pharmacist','stock_keeper','accountant'],salon:['admin','manager','cashier','accountant'],
+  tailor:['admin','manager','cashier','technician','accountant'],butcher:['admin','manager','cashier','stock_keeper','accountant'],grocery:['admin','manager','cashier','stock_keeper','accountant'],garage:['admin','manager','cashier','technician','stock_keeper','accountant'],tyre:['admin','manager','cashier','technician','stock_keeper','accountant']};
 const NO_COLLECTIONS={ /* collections that do not exist for a type */
-  restaurant:['rx_log','providers'],supermarket:['rx_log','providers'],retail:['rx_log','providers'],pharmacy:['providers'],clinic:['online','public_menu'],salon:['rx_log','online','public_menu']};
+  restaurant:['rx_log','providers','jobs','warranty','breakdowns'],supermarket:['rx_log','providers','jobs','warranty','breakdowns'],retail:['rx_log','providers','jobs','warranty','breakdowns'],pharmacy:['providers','jobs','warranty','breakdowns'],
+  clinic:['online','public_menu','jobs','warranty','breakdowns','drivers'],salon:['rx_log','online','public_menu','jobs','warranty','breakdowns','drivers'],
+  tailor:['rx_log','warranty','breakdowns','online','public_menu','drivers'],butcher:['rx_log','providers','jobs','warranty'],grocery:['rx_log','providers','jobs','warranty','breakdowns'],
+  garage:['rx_log','warranty','breakdowns','online','public_menu','drivers'],tyre:['rx_log','jobs','breakdowns','online','public_menu','drivers']};
 const allowedRoles=type=>['owner'].concat(ROLE_SETS[type]||[]);
 const ALL=ROLES, STAFF=['owner','admin','manager'], FIN=['owner','admin','accountant'];
 const SELL=['owner','admin','manager','cashier','waiter','pharmacist','billing'], STOCK=['owner','admin','manager','stock_keeper','pharmacist'], SELLSTOCK=SELL.concat(['stock_keeper']);
@@ -23,8 +27,13 @@ const POLICY={
   settings:{read:ALL,write:['owner','admin']},
   items:{read:ALL,write:STAFF,protect:{cost:COSTROLES}},
   categories:{read:ALL,write:STAFF},
-  customers:{read:['owner','admin','manager','cashier','waiter','accountant','pharmacist','billing'],write:SELL},
+  customers:{read:['owner','admin','manager','cashier','waiter','accountant','pharmacist','billing'],write:SELL,lock:{creditLimit:['owner','admin','manager','accountant']}},
   providers:{read:['owner','admin','manager','cashier','billing','accountant'],write:STAFF},
+  /* job orders / job cards: a technician may only move a job along (status, history, assignee, notes, next service); everything else is staff-only */
+  jobs:{read:['owner','admin','manager','cashier','technician','accountant'],write:['owner','admin','manager','cashier','technician'],limited:{technician:['status','history','assignee','notes','nextService','estimate']}},
+  warranty:{read:['owner','admin','manager','cashier','accountant','stock_keeper'],write:SELL,appendOnly:true,mutable:[]},
+  breakdowns:{read:['owner','admin','manager','accountant','stock_keeper'],write:['owner','admin','manager','stock_keeper'],appendOnly:true,mutable:[]},
+  drivers:{read:['owner','admin','manager','cashier','accountant'],write:STAFF},
   offers:{read:ALL,write:STAFF}, codes:{read:SELL,write:STAFF},
   counters:{read:ALL,write:['owner','admin']},
   sessions:{read:['owner','admin','manager','cashier','accountant','pharmacist','billing'],write:SELL},
@@ -202,6 +211,11 @@ function createApp(opt){
       if(r.data===null||typeof r.data!=='object'||Array.isArray(r.data))return {c:c,id:id,status:'invalid'};
       data=r.data; if(JSON.stringify(data).length>MAX_RECORD)return {c:c,id:id,status:'invalid',error:'record too large'};
     }
+    if(pol.limited&&pol.limited[a.role]){ /* role-limited writer: update an existing record, touching only the allowed fields */
+      if(!cur||cur.deleted||del)return {c:c,id:id,status:'denied',error:'this role can only update existing records'};
+      const old=JSON.parse(cur.data), ok=pol.limited[a.role], keys=new Set(Object.keys(old).concat(Object.keys(data)));
+      for(const k of keys){if(ok.indexOf(k)<0&&JSON.stringify(old[k])!==JSON.stringify(data[k])){audit(a.tid,a.uid,'sync.denied',c+'/'+id+' field '+k,null);return {c:c,id:id,status:'denied',error:'field "'+k+'" cannot be changed by this role'}}}
+    }
     if(cur&&!cur.deleted&&pol.appendOnly){
       if(del)return {c:c,id:id,status:'denied',error:'append-only'};
       const old=JSON.parse(cur.data), mut=pol.mutable||[], keys=new Set(Object.keys(old).concat(Object.keys(data)));
@@ -213,6 +227,8 @@ function createApp(opt){
     if(cur&&pol.protect&&!del){ /* a role that cannot see a field may not change it either: keep the server's value */
       const old=JSON.parse(cur.data);Object.keys(pol.protect).forEach(f=>{if(pol.protect[f].indexOf(a.role)<0){if(f in old)data[f]=old[f];else delete data[f]}});
     }else if(!cur&&pol.protect&&!del){Object.keys(pol.protect).forEach(f=>{if(pol.protect[f].indexOf(a.role)<0)delete data[f]})}
+    if(pol.lock&&!del){ /* readable by all, but only some roles may change the value (e.g. a customer's credit limit) */
+      const old=cur&&!cur.deleted?JSON.parse(cur.data):{};Object.keys(pol.lock).forEach(k=>{if(pol.lock[k].indexOf(a.role)<0){if(k in old)data[k]=old[k];else delete data[k]}})}
     const rev=cur?cur.rev+1:1, seq=nextSeq(a.tid);
     db.prepare('insert into records(tenant_id,coll,id,rev,deleted,data,seq,updated_by) values (?,?,?,?,?,?,?,?) on conflict(tenant_id,coll,id) do update set rev=excluded.rev,deleted=excluded.deleted,data=excluded.data,seq=excluded.seq,updated_by=excluded.updated_by')
       .run(a.tid,c,id,rev,del?1:0,del?'{}':JSON.stringify(data),seq,a.uid);

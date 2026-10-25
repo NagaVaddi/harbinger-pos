@@ -254,5 +254,33 @@ function client(port){
   const slugCl=(await CL.c.call('GET','/api/auth/session')).j.tenant.slug, slugSm=(await SM.c.call('GET','/api/auth/session')).j.tenant.slug;
   ok('clinic has no public storefront; a supermarket does (once the menu is published)',(await mk().call('GET','/api/public/'+slugCl+'/menu')).s===404&&(await mk().call('GET','/api/public/'+slugSm+'/menu')).s===503);
 
+  // ---------- trades: tailor, butcher, grocery, garage, tyre ----------
+  app.limiter.m.clear();
+  const TL=await sign('Tailor One','tailor','owner@tailor.test'), BT=await sign('Butcher One','butcher','owner@butcher.test'), GR=await sign('Grocery One','grocery','owner@grocery.test'), GA=await sign('Garage One','garage','owner@garage.test'), TY=await sign('Tyre One','tyre','owner@tyre.test');
+  ok('all five trade types can be registered',[TL,BT,GR,GA,TY].every(x=>x.r.s===201)&&GA.r.j.tenant.businessType==='garage');
+  const sess_=async x=>(await x.c.call('GET','/api/auth/session')).j;
+  const [tls,bts,grs,gas,tys]=[await sess_(TL),await sess_(BT),await sess_(GR),await sess_(GA),await sess_(TY)];
+  ok('collections follow the type: jobs for tailor/garage; warranty for tyre; breakdowns for butcher; drivers only where delivery exists',!!tls.permissions.collections.jobs&&!!gas.permissions.collections.jobs&&!!tys.permissions.collections.warranty&&!!bts.permissions.collections.breakdowns&&!!bts.permissions.collections.drivers&&!!grs.permissions.collections.drivers&&!tls.permissions.collections.drivers&&!gas.permissions.collections.drivers&&!tys.permissions.collections.jobs&&!grs.permissions.collections.jobs&&!bts.permissions.collections.warranty&&!grs.permissions.collections.breakdowns);
+  ok('tailor, garage and tyre have no online ordering; butcher and grocery do',!tls.permissions.collections.online&&!gas.permissions.collections.online&&!tys.permissions.collections.online&&!!bts.permissions.collections.online&&!!grs.permissions.collections.online);
+  ok('a grocery owner cannot write jobs, a tailor owner can',(await push(GR.c,[{c:'jobs',id:'j1',data:{no:'JOB-1'}}])).j.results[0].status==='denied'&&(await push(TL.c,[{c:'jobs',id:'j1',data:{no:'JOB-1',status:'received',title:'2 kandura',assignee:'',notes:'',lines:[{itemId:'i1',qty:2}],customerId:'c1',total:240}}])).j.results[0].status==='ok');
+  ok('technician role exists for tailor/garage/tyre only',(await staff(TL.c,'tech@tailor.test','technician')).res.s===201&&(await staff(GR.c,'tech@grocery.test','technician')).res.s===400&&(await staff(BT.c,'tech@butcher.test','technician')).res.s===400);
+  const tech=(await staff(GA.c,'mech@garage.test','technician')).c;
+  await push(GA.c,[{c:'jobs',id:'gj1',data:{no:'JOB-1',status:'estimate',title:'Brakes',assignee:'',notes:'',history:[],lines:[{itemId:'i1',qty:1,price:300}],customerId:'c1'}},{c:'customers',id:'c1',data:{name:'Fleet Co',creditLimit:5000}}]);
+  const tp=(await tech.call('GET','/api/sync/pull?since=0')).j.records;
+  ok('technician sees job cards but not customers, orders or accounts',tp.some(r=>r.c==='jobs')&&!tp.some(r=>['customers','orders','acc_vouchers','lots'].includes(r.c)));
+  const gj=tp.find(r=>r.c==='jobs'&&r.id==='gj1');
+  ok('technician can move a job along (status, notes) …',(await push(tech,[{c:'jobs',id:'gj1',baseRev:gj.rev,data:Object.assign({},gj.data,{status:'inprogress',notes:'pads worn'})}])).j.results[0].status==='ok');
+  const gj2=(await tech.call('GET','/api/sync/pull?since=0')).j.records.find(r=>r.id==='gj1');
+  ok('… but cannot change prices, lines or customer, cannot create or delete jobs',(await push(tech,[{c:'jobs',id:'gj1',baseRev:gj2.rev,data:Object.assign({},gj2.data,{lines:[{itemId:'i1',qty:1,price:1}]})}])).j.results[0].status==='denied'&&(await push(tech,[{c:'jobs',id:'new1',data:{no:'X'}}])).j.results[0].status==='denied'&&(await push(tech,[{c:'jobs',id:'gj1',baseRev:gj2.rev,deleted:true}])).j.results[0].status==='denied');
+  ok('technician cannot write orders, items or customers',(await push(tech,[{c:'orders',id:'to1',data:{a:1}},{c:'items',id:'ti1',data:{a:1}},{c:'customers',id:'tc1',data:{a:1}}])).j.results.every(r=>r.status==='denied'));
+  const gcash=(await staff(GA.c,'cash@garage.test','cashier')).c;
+  const gcu=(await gcash.call('GET','/api/sync/pull?since=0')).j.records.find(r=>r.c==='customers'&&r.id==='c1');
+  ok('a cashier can read a credit limit but cannot raise it',gcu&&gcu.data.creditLimit===5000&&(await push(gcash,[{c:'customers',id:'c1',baseRev:gcu.rev,data:Object.assign({},gcu.data,{creditLimit:999999,visits:3})}])).j.results[0].status==='ok');
+  const cu2=(await GA.c.call('GET','/api/sync/pull?since=0')).j.records.find(r=>r.c==='customers'&&r.id==='c1');
+  ok('the server kept the old credit limit but accepted the other change',cu2.data.creditLimit===5000&&cu2.data.visits===3);
+  ok('an owner can change the credit limit',(await push(GA.c,[{c:'customers',id:'c1',baseRev:cu2.rev,data:Object.assign({},cu2.data,{creditLimit:8000})}])).j.results[0].status==='ok');
+  ok('warranty and breakdown records are append-only',(await push(TY.c,[{c:'warranty',id:'w1',data:{dot:'2524',plate:'D 1'}}])).j.results[0].status==='ok'&&(await push(TY.c,[{c:'warranty',id:'w1',data:{dot:'9999',plate:'D 1'}}])).j.results[0].status==='denied'&&(await push(BT.c,[{c:'breakdowns',id:'b1',data:{qty:40}}])).j.results[0].status==='ok'&&(await push(BT.c,[{c:'breakdowns',id:'b1',data:{qty:1}}])).j.results[0].status==='denied');
+  ok('delivery partners: a butcher owner can keep them, a cashier cannot edit them',(await push(BT.c,[{c:'drivers',id:'d1',data:{name:'Imran',code:'DR-001'}}])).j.results[0].status==='ok'&&(await push((await staff(BT.c,'c@butcher.test','cashier')).c,[{c:'drivers',id:'d2',data:{name:'x'}}])).j.results[0].status==='denied');
+  ok('tenant isolation holds for the new collections',!(await TY.c.call('GET','/api/sync/pull?since=0')).j.records.some(r=>r.c==='jobs'||r.c==='breakdowns'));
   app.close();console.log('\n'+pass+' passed, '+fail+' failed');process.exit(fail?1:0);
 })().catch(e=>{console.error('TEST ERROR',e);process.exit(2)});

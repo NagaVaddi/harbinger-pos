@@ -22,7 +22,7 @@ node server/cloud/cloud.js                         # http://127.0.0.1:8788
 
 | Endpoint | Who | Purpose |
 |---|---|---|
-| `POST /api/auth/register` | public, if enabled | create business + owner; **`businessType` is required**: restaurant, supermarket, retail, pharmacy, clinic or salon |
+| `POST /api/auth/register` | public, if enabled | create business + owner; **`businessType` is required**: restaurant, supermarket, retail, pharmacy, clinic, salon, tailor, butcher, grocery, garage or tyre |
 | `POST /api/auth/login` | public | email, password, optional `code` (2FA / backup code) |
 | `GET /api/auth/session` · `POST /api/auth/logout` · `/logout-all` · `/change-password` | signed in | session info (user, tenant, csrf, permissions) |
 | `POST /api/auth/2fa/setup` · `/enable` · `/disable` | signed in | TOTP enrolment, backup codes |
@@ -35,8 +35,10 @@ node server/cloud/cloud.js                         # http://127.0.0.1:8788
 
 Collections and role rules are defined in `POLICY` at the top of `cloud.js`. The business type chosen at sign-up limits both the **staff roles** you can create (`ROLE_SETS`) and which **collections exist** (`NO_COLLECTIONS`); the session endpoint returns `tenant.businessType`, the allowed `roles` and the per-collection permissions.
 
+New collections: `jobs` (tailor, garage; a **technician** can only update status, history, assignee, notes and next service), `warranty` (tyre, append-only), `breakdowns` (butcher, append-only) and `drivers`. A customer's `creditLimit` is readable by staff but only owner, admin, manager and accountant can change it.
+
 ## Tests
-`npm test` (suite `tests/cloud.test.js`) exercises 127 security checks (tenant isolation, CSRF, lockout, 2FA, RBAC, append-only, injection attempts, webhooks, storefront). Run them before every release.
+`npm test` (suite `tests/cloud.test.js`) exercises 142 security checks (tenant isolation, CSRF, lockout, 2FA, RBAC, append-only, injection attempts, webhooks, storefront). Run them before every release.
 
 ## Status
 Foundation only: the POS web app does not use this server yet. See `SECURITY.md` → "Not done yet".

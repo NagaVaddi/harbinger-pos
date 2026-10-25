@@ -15,7 +15,7 @@ const ACC_LEDGERS=[ // key, name, group, system
   ['cash','Cash-in-Hand','g_cash',1],['bank','Main Bank Account','g_bank',1],['card','Card Collections (in transit)','g_dep',1],['wallet','Wallet / QR Collections','g_dep',1],
   ['suspense','Cash Paid Out (to classify)','g_dep',1],['stock','Stock-in-Hand','g_stock',1],['vat_out','VAT Output','g_duty',1],['vat_in','VAT Input','g_duty',1],
   ['grn','GRN Clearing (unbilled receipts)','g_cl',1],['capital',"Owner's Capital",'g_cap',1],['sales','Sales','g_sales',1],['purchases','Purchases','g_pur',1],
-  ['cogs','Cost of Goods Sold','g_dexp',1],['disc','Discount Allowed','g_iexp',1],['shortover','Cash Over / Short','g_iexp',1],['cod','COD / Pay-at-counter Receivable','g_dep',1],['aggr','Aggregator Receivables','g_debt',1],['commission','Aggregator Commission','g_iexp',1],['svc','Service Charge Income','g_iinc',1],['stockdiff','Stock Valuation Differences','g_iexp',1],['insrej','Insurance Claim Rejections','g_iexp',1],['govfee','Government Fees Payable (municipality etc.)','g_duty',1],['wastage','Stock Wastage & Adjustments','g_iexp',1],
+  ['cogs','Cost of Goods Sold','g_dexp',1],['disc','Discount Allowed','g_iexp',1],['shortover','Cash Over / Short','g_iexp',1],['cod','COD / Pay-at-counter Receivable','g_dep',1],['aggr','Aggregator Receivables','g_debt',1],['commission','Aggregator Commission','g_iexp',1],['svc','Service Charge Income','g_iinc',1],['stockdiff','Stock Valuation Differences','g_iexp',1],['advances','Customer Advances (job orders)','g_cl',1],['insrej','Insurance Claim Rejections','g_iexp',1],['govfee','Government Fees Payable (municipality etc.)','g_duty',1],['wastage','Stock Wastage & Adjustments','g_iexp',1],
   [null,'Rent','g_iexp',0],[null,'Salaries & Wages','g_iexp',0],[null,'Utilities','g_iexp',0],[null,'Marketing','g_iexp',0],[null,'Repairs & Maintenance','g_iexp',0],[null,'Miscellaneous Expenses','g_iexp',0]
 ];
 const VPFX={Sales:'SAL',Purchase:'PUR',Payment:'PAY',Receipt:'REC',Journal:'JNL',Contra:'CNT','Credit Note':'CRN'};
@@ -84,7 +84,7 @@ function allocCost(allocs,itemId){
   const it=itemById(itemId);
   return r2((allocs||[]).reduce((a,x)=>{const l=byId(DB.lots,x.lotId);return a+x.qty*(l?l.cost:(it?it.cost:0))},0));
 }
-function tenderLedger(m,ins){if(m==='insurance')return insurerLedger(ins).id;return m==='cash'?LID('cash'):m==='card'?LID('card'):m==='cod'?LID('cod'):m==='aggregator'?LID('aggr'):LID('wallet')}
+function tenderLedger(m,ins,cid){if(m==='insurance')return insurerLedger(ins).id;if(m==='advance')return LID('advances');if(m==='credit')return customerLedger(cid).id;return m==='cash'?LID('cash'):m==='card'?LID('card'):m==='cod'?LID('cod'):m==='aggregator'?LID('aggr'):LID('wallet')}
 
 function postSale(o){
   const s=DB.settings, rate=s.vatPct/100, sub=o.subtotal;
@@ -93,9 +93,9 @@ function postSale(o){
   const chT=o.chargeTotal||0, disc=Math.max(0,r2(subEx-r2(o.total-o.vat-chT)));
   const salesCr=r2(o.total-o.vat-chT+disc);
   const E=[];
-  const pays=o.payments.map(p=>({m:p.method,a:p.amount,ins:p.insurer}));
+  const pays=o.payments.map(p=>({m:p.method,a:p.amount,ins:p.insurer,cid:p.customerId}));
   const diff=r2(o.total-pays.reduce((a,p)=>a+p.a,0)); if(pays.length&&diff)pays[0].a=r2(pays[0].a+diff);
-  pays.forEach(p=>E.push({ledgerId:tenderLedger(p.m,p.ins),dr:p.a,cr:0}));
+  pays.forEach(p=>E.push({ledgerId:tenderLedger(p.m,p.ins,p.cid),dr:p.a,cr:0}));
   if(disc>0)E.push({ledgerId:LID('disc'),dr:disc,cr:0});
   E.push({ledgerId:LID('sales'),dr:0,cr:salesCr});
   (o.charges||[]).forEach(c=>E.push({ledgerId:c.payable?LID('govfee'):LID('svc'),dr:0,cr:c.amount}));

@@ -4,7 +4,7 @@ global.localStorage={_d:{},getItem(k){return this._d[k]||null},setItem(k,v){this
 global.document={addEventListener(){},querySelector(){return null},querySelectorAll(){return[]},documentElement:{setAttribute(k,v){this[k]=v}}};
 global.window={addEventListener(){},open(){}};global.location={hash:'',protocol:'file:',origin:'null'};global.matchMedia=()=>({matches:false});global.render=()=>{};
 const {DOMParser}=require('@xmldom/xmldom');
-const src=['vendor/qrcode','core','ui','regions','business','vertical','console','accounts','einvoice','insights','online','register'].map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
+const src=['vendor/qrcode','core','ui','regions','business','vertical','business_trades','trades','partners','reports_hub','stock_config','console','accounts','einvoice','insights','online','register'].map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
 const names='load,A,computeTotals,finalizeOrder,balMap,LID,applyCountry,COUNTRIES,receiptHtml,einvStamp,einvXml,curDec,r2,fmt,money,tr,rt,dn,applyLang,vApps,vSettings,ticketMargin,sessionStats,countryList,CHANNELS,setupWizard,menuSnapshot'.split(',');
 const run=new Function(src+';modal=function(){return null};toast=function(){};return {'+names.join(',')+',get DB(){return DB},setME(u){ME=u},setLang(l){LANG=l}};');
 const m=run();m.load();const DB=m.DB;m.setME(DB.users[0]);

@@ -6,6 +6,17 @@ const completed=()=>DB.orders.filter(o=>o.status==='completed');
 const searchBox=(key,ph)=>'<input id="q-'+key+'" class="search" type="search" data-in="q" data-key="'+key+'" placeholder="'+esc(ph||'Search…')+'" value="'+esc(UIS.q[key]||'')+'" aria-label="'+esc(ph||'Search')+'">';
 I.q=el=>{UIS.q[el.dataset.key]=el.value;render()};
 const match=(q,arr)=>{q=(q||'').trim().toLowerCase();return !q||arr.some(v=>String(v==null?'':v).toLowerCase().indexOf(q)>=0)};
+/* pagination: paged(key,rows) → {rows,html}; page size and page are remembered per table */
+function paged(key,rows){
+  const st=(UIS.pg=UIS.pg||{})[key]||(UIS.pg[key]={page:1,size:10}), pages=Math.max(1,Math.ceil(rows.length/st.size)); if(st.page>pages)st.page=pages;
+  const a=(st.page-1)*st.size, b=Math.min(rows.length,a+st.size), nums=[];
+  for(let p=1;p<=pages;p++)if(p<=3||p>pages-2||Math.abs(p-st.page)<=1)nums.push(p);
+  const btns=nums.map((p,i)=>(i&&p-nums[i-1]>1?'<span class="muted">…</span>':'')+'<button type="button" class="pg'+(p===st.page?' on':'')+'" data-act="pg" data-id="'+key+'|'+p+'">'+p+'</button>').join('');
+  return {rows:rows.slice(a,b),html:rows.length>st.size||st.size!==10?'<div class="pager"><label class="inl"><select data-ch="pgsize" data-key="'+key+'" aria-label="Rows per page">'+[10,20,50,100].map(n=>'<option'+(n===st.size?' selected':'')+'>'+n+'</option>').join('')+'</select></label><span class="muted sm">Showing '+(rows.length?a+1:0)+' to '+b+' of '+rows.length+' results</span><span class="sp"></span>'+
+    '<button type="button" class="pg" data-act="pg" data-id="'+key+'|'+Math.max(1,st.page-1)+'" aria-label="Previous">‹</button>'+btns+'<button type="button" class="pg" data-act="pg" data-id="'+key+'|'+Math.min(pages,st.page+1)+'" aria-label="Next">›</button></div>':''};
+}
+A['pg']=d=>{const p=d.id.split('|');UIS.pg[p[0]].page=+p[1];render()};
+C.pgsize=el=>{const st=UIS.pg[el.dataset.key];st.size=+el.value;st.page=1;render()};
 function tabs(base,list,cur){
   return '<div class="tabs" role="tablist">'+list.map(t=>'<a role="tab" class="'+(t[0]===cur?'on':'')+'" href="#/'+base+'/'+t[0]+'">'+esc(t[1])+'</a>').join('')+'</div>';
 }
@@ -22,15 +33,15 @@ function vCatalog(tab){
       {h:'',cls:'r',r:r=>btn('Edit','cat-edit',r.id)+' '+btn('Delete','cat-del',r.id,'danger')}],rows,'No categories.');
   }else{
     const cf=UIS.q.catf||'all';
-    const rows=DB.items.filter(i=>(cf==='all'||i.categoryId===cf)&&match(UIS.q.items,[i.name,i.nameAr,i.sku,i.barcode]));
+    const all_=DB.items.filter(i=>(cf==='all'||i.categoryId===cf)&&match(UIS.q.items,[i.name,i.nameAr,i.sku,i.barcode,i.size,i.brand])), pg=paged('items',all_), rows=pg.rows;
     body='<div class="bar">'+searchBox('items','Search name, SKU or barcode')+
       '<select data-ch="catf" aria-label="Filter by category"><option value="all">All categories</option>'+DB.categories.map(c=>'<option value="'+c.id+'"'+(cf===c.id?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>'+
       '<span class="sp"></span>'+btn('Import CSV','item-import')+btn('Export CSV','item-export')+btn('+ Add item','item-edit',null,'primary')+'</div>'+
       tbl([{h:'Item',r:r=>'<b>'+esc(r.name)+'</b>'+(r.nameAr?'<br><span class="muted sm">'+esc(r.nameAr)+'</span>':'')},{h:'SKU / barcode',r:r=>esc(r.sku)+'<br><span class="muted sm">'+esc(r.barcode||'')+'</span>'},
-        {h:'Category',r:r=>esc(catName(r.categoryId))},{h:'Price',cls:'r',r:r=>fmt(r.price)},{h:'Cost',cls:'r',r:r=>fmt(r.cost)},
+        {h:'Pack size',r:r=>esc(r.size||(r.unit&&r.weighed?'per '+r.unit:'—'))},{h:'Category',r:r=>esc(catName(r.categoryId))},{h:'Price',cls:'r',r:r=>fmt(r.price)},{h:'Cost',cls:'r',r:r=>fmt(r.cost)},
         {h:'Margin',cls:'r',r:r=>r.price>0?Math.round((r.price-r.cost)/r.price*100)+'%':'—'},{h:'Stock',cls:'r',r:r=>r.track?stockOf(r.id):'—'},
         {h:'Status',r:r=>badge(r.active?'Active':'Archived',r.active?'ok':'')},
-        {h:'',cls:'r',r:r=>btn('Edit','item-edit',r.id)+' '+btn('Copy','item-dup',r.id)+' '+btn(r.active?'Archive':'Restore','item-toggle',r.id)}],rows,'No items match.');
+        {h:'',cls:'r',r:r=>btn('Edit','item-edit',r.id)+' '+btn('Copy','item-dup',r.id)+' '+btn(r.active?'Archive':'Restore','item-toggle',r.id)}],rows,'No items match.')+pg.html;
   }
   return head('Catalog','Items, categories and prices')+tabs('catalog',[['items','Items'],['categories','Categories']],tab)+body;
 }
@@ -100,7 +111,7 @@ A['cat-del']=d=>{
 /* ================= Stock Room ================= */
 function vStock(tab){
   tab=tab||'onhand'; let body='';
-  const T=[['onhand','Stock on hand'],['receive','Receive'],['lots','Lots & expiry'],['ledger','Ledger'],['reorder','Reorder'],['suppliers','Suppliers'],['pos','Purchase orders']];
+  const T=[['onhand','Manage Stock'],['receive','Receive'],['lots','Stock Batches'],['ledger','Stock History'],['reorder','Reorder'],['suppliers','Suppliers'],['pos','Purchase orders']].concat(bm('breakdown')?[['breakdown','Breakdown']]:[],bm('weighed')?[['scale','Weighing Management']]:[],[['barcodes','Barcode Config']]);
   if(tab==='onhand'){
     const rows=DB.items.filter(i=>i.track&&match(UIS.q.stock,[i.name,i.sku,i.barcode]));
     body='<div class="bar">'+searchBox('stock','Search items')+'<span class="sp"></span>'+btn('Export CSV','stock-export')+'</div>'+
@@ -119,6 +130,9 @@ function vStock(tab){
     body='<div class="bar">'+searchBox('ledger','Search item, type or reference')+'<span class="sp"></span>'+btn('Export CSV','ledger-export')+'</div>'+tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'Item',r:r=>esc((itemById(r.itemId)||{}).name||'?')},{h:'Type',r:r=>badge(r.type,r.qty>0?'ok':'')},{h:'Qty',cls:'r',r:r=>(r.qty>0?'+':'')+r.qty},{h:'Ref',r:r=>esc(r.ref)+(r.note?' · '+esc(r.note):'')},{h:'By',r:r=>esc(userName(r.user))}],rows,'No movements yet.');
   }else if(tab==='reorder'){
     body=vReorder();
+  }else if(tab==='breakdown'){body=vBreakdown();
+  }else if(tab==='scale'){body=vScaleSetup();
+  }else if(tab==='barcodes'){body=vBarcodes();
   }else if(tab==='suppliers'){
     body='<div class="bar"><span class="sp"></span>'+btn('+ Add supplier','sup-edit',null,'primary')+'</div>'+tbl([{h:'Supplier',r:r=>'<b>'+esc(r.name)+'</b>'},{h:'Phone',r:r=>esc(r.phone||'—')},{h:'Email',r:r=>esc(r.email||'—')},{h:'Terms',r:r=>esc(r.terms||'—')},{h:'',cls:'r',r:r=>btn('Edit','sup-edit',r.id)+' '+btn('Delete','sup-del',r.id,'danger')}],DB.suppliers,'No suppliers.');
   }else{
@@ -192,13 +206,16 @@ A['po-del']=d=>confirmBox('Delete this purchase order?',()=>{DB.pos=DB.pos.filte
 A['po-receive']=d=>{const po=byId(DB.pos,d.id);if(po.status==='received')return;po.lines.forEach(l=>receiveLot(l.itemId,po.no,null,l.qty,l.cost,po.no));po.status='received';postPurchase(po);audit('po.receive',po.no);save();toast(po.no+' received into stock');render()};
 
 /* ================= Guests ================= */
-const GTABS=[['directory','Directory'],['segments','Segments & win-back']];
+const gTabs=()=>[['directory','Directory'],['segments','Segments & win-back']].concat(bm('credit')?[['credit','Credit accounts']]:[]);
 function vGuests(tab){
-  if(tab==='segments')return head('Guests','Who to reward and who to win back')+tabs('guests',GTABS,'segments')+vSegments();
-  const rows=DB.customers.filter(c=>match(UIS.q.guests,[c.name,c.phone,c.email]));
-  return head('Guests','Directory and loyalty')+tabs('guests',GTABS,'directory')+'<div class="bar">'+searchBox('guests','Search name, phone or email')+'<span class="sp"></span>'+btn('Export CSV','guest-export')+btn('+ Add guest','guest-edit',null,'primary')+'</div>'+
-    tbl([{h:'Guest',r:r=>'<b>'+esc(r.name)+'</b>'+(r.notes?'<br><span class="muted sm">'+esc(r.notes)+'</span>':'')},{h:'Phone',r:r=>esc(r.phone||'—')},{h:'Visits',cls:'r',r:r=>r.visits},{h:'Spend',cls:'r',r:r=>fmt(r.spend)},{h:'Points',cls:'r',r:r=>r.points},
-      {h:'',cls:'r',r:r=>btn('View','guest-view',r.id)+' '+btn('Edit','guest-edit',r.id)}],rows,'No guests match.');
+  if(tab==='segments')return head('Guests','Who to reward and who to win back')+tabs('guests',gTabs(),'segments')+vSegments();
+  if(tab==='credit'&&bm('credit'))return head('Guests','Credit accounts and customer balances')+tabs('guests',gTabs(),'credit')+vCreditBook();
+  const CB=bm('credit')?creditBalances():{};
+  const rows0=DB.customers.filter(c=>match(UIS.q.guests,[c.name,c.phone,c.email])), pg=paged('guests',rows0), rows=pg.rows;
+  return head('Guests','Directory and loyalty')+tabs('guests',gTabs(),'directory')+'<div class="bar">'+searchBox('guests','Search name, phone or email')+'<span class="sp"></span>'+btn('Export CSV','guest-export')+btn('+ Add guest','guest-edit',null,'primary')+'</div>'+
+    tbl([{h:'Customer ID',r:r=>'<span class="muted">CU-'+esc(String(r.id).replace(/[^A-Za-z0-9]/g,'').slice(-6).toUpperCase())+'</span>'},{h:'Customer',r:r=>'<b>'+esc(r.name)+'</b>'+(r.notes?'<br><span class="muted sm">'+esc(r.notes)+'</span>':'')},{h:'Phone',r:r=>esc(r.phone||'—')},{h:'Registered on',r:r=>r.created?fmtDT(r.created):'—'},{h:'Visits',cls:'r',r:r=>r.visits},{h:'Spend',cls:'r',r:r=>fmt(r.spend)},{h:'Points',cls:'r',r:r=>r.points},{h:'Status',r:r=>r.inactive?badge('Inactive',''):badge('Active','ok')},
+      ...(bm('credit')?[{h:'Owes',cls:'r',r:r=>{const b=CB[r.id]||0;return b>0.004?'<b class="neg">'+fmt(b)+'</b>':'—'}}]:[]),
+      {h:'',cls:'r',r:r=>btn('View','guest-view',r.id)+' '+btn('Edit','guest-edit',r.id)}],rows,'No guests match.')+pg.html;
 }
 A['guest-export']=()=>downloadCSV('guests',[['name','phone','email','visits','spend','points']].concat(DB.customers.map(c=>[c.name,c.phone,c.email,c.visits,c.spend,c.points])));
 function guestForm(c){return '<div class="form2">'+field('Name','name',c&&c.name,{req:1,af:1})+field('Phone','phone',c&&c.phone,{type:'tel'})+field('Email','email',c&&c.email,{type:'email'})+field('Notes','notes',c&&c.notes)+guestExtraFields(c)+'</div>'}
@@ -223,14 +240,17 @@ A['guest-points']=d=>{const c=byId(DB.customers,d.id);modal({title:'Adjust point
 /* ================= Promotions ================= */
 function vPromos(tab){
   tab=tab||'offers'; let body='';
+  const today=dayKey(now());
   if(tab==='codes'){
-    body='<div class="bar"><span class="sp"></span>'+btn('+ Add code','code-edit',null,'primary')+'</div>'+tbl([{h:'Code',r:r=>'<b>'+esc(r.code)+'</b>'},{h:'Value',r:r=>r.type==='pct'?r.value+'%':money(r.value)},{h:'Min spend',cls:'r',r:r=>fmt(r.min)},
-      {h:'Used',cls:'r',r:r=>r.used+(r.limit?' / '+r.limit:'')},{h:'Expires',r:r=>r.expiry||'—'},{h:'Status',r:r=>badge(r.active?'Active':'Off',r.active?'ok':'')},{h:'',cls:'r',r:r=>btn('Edit','code-edit',r.id)+' '+btn('Delete','code-del',r.id,'danger')}],DB.codes,'No promo codes.');
+    const rows=DB.codes.filter(c=>match(UIS.q.codes,[c.code,c.name])).slice().reverse(), st=c=>!c.active?badge('Off',''):(c.expiry&&c.expiry<today)?badge('Expired','bad'):(c.limit&&c.used>=c.limit)?badge('Used up','warn'):badge('Active','ok');
+    body='<div class="bar">'+searchBox('codes','Search here…')+'<span class="sp"></span>'+btn('+ Add','code-edit',null,'primary')+'</div>'+tbl([{h:'Code',r:r=>'<b>'+esc(r.code)+'</b>'},{h:'Name',r:r=>esc(r.name||'—')},{h:'Discount',r:r=>(r.type==='pct'?r.value+'%':money(r.value))+(r.min?'<br><span class="muted sm">min spend '+fmt(r.min)+'</span>':'')},
+      {h:'Validity',r:r=>r.expiry?'until '+esc(r.expiry):'No expiry'},{h:'Used / limit',r:r=>r.used+' / '+(r.limit||'∞')},{h:'Status',r:r=>st(r)},{h:'Created',r:r=>r.created?fmtDate(r.created):'—'},{h:'',cls:'r',r:r=>btn(r.active?'Turn off':'Turn on','code-toggle',r.id)+' '+btn('Edit','code-edit',r.id)+' '+btn('Delete','code-del',r.id,'danger')}],rows,'No data found.');
   }else{
-    body='<div class="bar"><p class="muted sm">The best applicable automatic offer is applied at the register.</p><span class="sp"></span>'+btn('+ Add offer','offer-edit',null,'primary')+'</div>'+tbl([{h:'Offer',r:r=>'<b>'+esc(r.name)+'</b>'},
-      {h:'Rule',r:r=>r.type==='order_pct'?r.value+'% off order':r.type==='order_amt'?money(r.value)+' off order':r.value+'% off '+esc(catName(r.categoryId))},{h:'Min spend',cls:'r',r:r=>fmt(r.min)},
-      {h:'Window',r:r=>(r.startTime&&r.endTime?r.startTime+'–'+r.endTime:'All day')+(r.startDate||r.endDate?'<br><span class="muted sm">'+esc(r.startDate||'…')+' → '+esc(r.endDate||'…')+'</span>':'')},
-      {h:'Status',r:r=>offerActive(r)?badge('Live now','ok'):badge(r.active?'Scheduled':'Off','')},{h:'',cls:'r',r:r=>btn('Edit','offer-edit',r.id)+' '+btn('Delete','offer-del',r.id,'danger')}],DB.offers,'No offers.');
+    const rows=DB.offers.filter(o=>match(UIS.q.offers,[o.name,o.type,catName(o.categoryId)])).slice().reverse();
+    body='<div class="bar">'+searchBox('offers','Search here…')+'<p class="muted sm">The best applicable automatic offer is applied at the register.</p><span class="sp"></span>'+btn('+ Add','offer-edit',null,'primary')+'</div>'+tbl([{h:'Title',r:r=>'<b>'+esc(r.name)+'</b>'+(r.startTime&&r.endTime?'<br><span class="muted sm">'+r.startTime+'–'+r.endTime+' daily</span>':'')},
+      {h:'Product',r:r=>r.type==='cat_pct'?esc(catName(r.categoryId)):'Whole order'+(r.min?'<br><span class="muted sm">min spend '+fmt(r.min)+'</span>':'')},{h:'Discount type',r:r=>r.type==='order_pct'?r.value+'% off':r.type==='order_amt'?money(r.value)+' off':r.value+'% off category'},
+      {h:'Valid from',r:r=>r.startDate?esc(r.startDate):'—'},{h:'Valid until',r:r=>r.endDate?esc(r.endDate):'—'},{h:'Status',r:r=>offerActive(r)?badge('Live now','ok'):badge(r.active?'Scheduled':'Off','')},{h:'Created',r:r=>r.created?fmtDate(r.created):'—'},
+      {h:'',cls:'r',r:r=>btn(r.active?'Turn off':'Turn on','offer-toggle',r.id)+' '+btn('Edit','offer-edit',r.id)+' '+btn('Delete','offer-del',r.id,'danger')}],rows,'No data found.');
   }
   return head('Promotions','Automatic offers and promo codes')+tabs('promos',[['offers','Offers'],['codes','Promo codes']],tab)+body;
 }
@@ -243,18 +263,20 @@ A['offer-edit']=d=>{
       if(f.type!=='order_amt'&&v>100){toast('Percent cannot exceed 100','err');return false}
       if((f.startTime&&!f.endTime)||(!f.startTime&&f.endTime)){toast('Set both start and end time','err');return false}
       const rec={name:f.name.trim(),type:f.type,value:v,min:num(f.min),categoryId:f.categoryId,startTime:f.startTime,endTime:f.endTime,startDate:f.startDate,endDate:f.endDate,active:!!f.active};
-      if(d.id)Object.assign(o,rec);else DB.offers.push(Object.assign({id:uid('o')},rec));save();render()}}]});
+      if(d.id)Object.assign(o,rec);else DB.offers.push(Object.assign({id:uid('o'),created:now()},rec));save();render()}}]});
 };
+A['offer-toggle']=d=>{const o=byId(DB.offers,d.id);if(o){o.active=!o.active;save();render()}};
+A['code-toggle']=d=>{const c=byId(DB.codes,d.id);if(c){c.active=!c.active;save();render()}};
 A['offer-del']=d=>confirmBox('Delete this offer?',()=>{DB.offers=DB.offers.filter(o=>o.id!==d.id);save();render()},'Delete');
 A['code-edit']=d=>{
   const c=d.id?byId(DB.codes,d.id):{type:'pct',value:10,min:0,limit:0,active:true};
-  modal({title:d.id?'Edit code':'New code',body:'<div class="form2">'+field('Code','code',c.code,{req:1,af:1})+select('Type','type',[['pct','Percent'],['amt','Fixed amount']],c.type)+field('Value','value',c.value,{type:'number',step:'0.01',min:0})+field('Minimum spend','min',c.min,{type:'number',step:'0.01',min:0})+
+  modal({title:d.id?'Edit code':'New code',body:'<div class="form2">'+field('Code','code',c.code,{req:1,af:1})+field('Name','name',c.name,{max:40})+select('Type','type',[['pct','Percent'],['amt','Fixed amount']],c.type)+field('Value','value',c.value,{type:'number',step:'0.01',min:0})+field('Minimum spend','min',c.min,{type:'number',step:'0.01',min:0})+
     field('Usage limit (0 = unlimited)','limit',c.limit,{type:'number',min:0})+field('Expiry date','expiry',c.expiry,{type:'date'})+'</div>'+check('Active','active',c.active),
     actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{const f=formData(el),code=f.code.trim().toUpperCase().replace(/\s+/g,''),v=num(f.value);
       if(!code||v<=0){toast('Code and value are required','err');return false}if(f.type==='pct'&&v>100){toast('Percent cannot exceed 100','err');return false}
       if(DB.codes.some(x=>x.id!==d.id&&x.code===code)){toast('Code already exists','err');return false}
-      const rec={code:code,type:f.type,value:v,min:num(f.min),limit:Math.max(0,Math.round(num(f.limit))),expiry:f.expiry,active:!!f.active};
-      if(d.id)Object.assign(c,rec);else DB.codes.push(Object.assign({id:uid('p'),used:0},rec));save();render()}}]});
+      const rec={name:(f.name||'').trim(),code:code,type:f.type,value:v,min:num(f.min),limit:Math.max(0,Math.round(num(f.limit))),expiry:f.expiry,active:!!f.active};
+      if(d.id)Object.assign(c,rec);else DB.codes.push(Object.assign({id:uid('p'),used:0,created:now()},rec));save();render()}}]});
 };
 A['code-del']=d=>confirmBox('Delete this code?',()=>{DB.codes=DB.codes.filter(c=>c.id!==d.id);save();render()},'Delete');
 
@@ -300,8 +322,9 @@ function vOutlets(tab){
     const rows=DB.vouchers.slice().reverse();
     body=tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'Type',r:r=>badge(r.type,r.type==='in'?'ok':'warn')},{h:'Amount',cls:'r',r:r=>fmt(r.amount)},{h:'Reason',r:r=>esc(r.reason)},{h:'By',r:r=>esc(userName(r.userId))}],rows,'No cash vouchers or refunds yet.');
   }else{
-    body='<div class="bar"><span class="sp"></span>'+btn('+ Add register','counter-edit',null,'primary')+'</div>'+tbl([{h:'Register',r:r=>'<b>'+esc(r.name)+'</b>'},{h:'Code',r:r=>esc(r.code)},{h:'State',r:r=>{const s=openSession(r.id);return s?badge('Open · '+userName(s.openedBy),'ok'):badge('Closed','')}},
-      {h:'Orders',cls:'r',r:r=>DB.orders.filter(o=>o.counterId===r.id).length},{h:'',cls:'r',r:r=>btn('Edit','counter-edit',r.id)+(openSession(r.id)?'':' '+btn('Delete','counter-del',r.id,'danger'))}],DB.counters,'No registers.');
+    body='<div class="bar">'+searchBox('counters','Search here…')+'<span class="sp"></span>'+btn('+ Add','counter-edit',null,'primary')+'</div>'+tbl([{h:'#',r:r=>DB.counters.indexOf(r)+1},{h:'Name',r:r=>'<b>'+esc(r.name)+'</b>'},{h:'Username',r:r=>esc(r.code)},
+      {h:'Staff / shifts',r:r=>{const ss=DB.sessions.filter(s=>s.counterId===r.id);return new Set(ss.map(s=>s.openedBy)).size+' staff · '+ss.length+' shifts'}},{h:'Active session',r:r=>{const s=openSession(r.id);return s?badge(userName(s.openedBy),'ok')+' <span class="muted sm">since '+fmtDT(s.openedAt)+'</span>':'—'}},{h:'Status',r:r=>r.active?badge('Active','ok'):badge('Disabled','')},
+      {h:'Orders',cls:'r',r:r=>DB.orders.filter(o=>o.counterId===r.id).length},{h:'',cls:'r',r:r=>btn('Edit','counter-edit',r.id)+(openSession(r.id)?'':' '+btn('Delete','counter-del',r.id,'danger'))}],DB.counters.filter(c=>match(UIS.q.counters,[c.name,c.code])),'No data found.');
   }
   return head('Outlets & Registers','Registers, sessions and cash control')+tabs('outlets',[['registers','Registers'],['sessions','Sessions & Z reports'],['vouchers','Cash vouchers']],tab)+body;
 }
@@ -360,8 +383,8 @@ function repRange(){
 C.from=el=>{UIS.from=el.value||UIS.from;render()}; C.to=el=>{UIS.to=el.value||UIS.to;render()};
 const REPORTS=[['menu','Menu profit'],['risk','Risk alerts'],['hourly','Busy hours'],['sales','Sales summary'],['items','By item'],['category','By category'],['payments','Payments'],['staff','By cashier'],['vat','VAT'],['margin','Margin per bill'],['valuation','Stock valuation'],['expiry','Expiry']];
 function vReports(tab){
-  tab=tab||'sales';
-  if(tab==='menu'||tab==='hourly'||tab==='risk'||tab==='rx'||tab==='provider')return head('Insights','Reports with date filters and CSV export')+tabs('reports',reportTabs(),tab)+(tab==='menu'?vMenuEng():tab==='hourly'?vHourly():tab==='rx'?vRxRegister():tab==='provider'?vProviderReport():vRisk());
+  tab=tab||''; if(!tab)return vReportHub(); if(tab.indexOf('inv-')===0)return vInvReport(tab); if(tab.indexOf('acc-')===0)return vAccReport(tab);
+  if(tab==='menu'||tab==='hourly'||tab==='risk'||tab==='rx'||tab==='provider'||tab==='warranty'||tab==='vehicle')return head('Insights','Reports with date filters and CSV export')+reportNav(tab)+(tab==='menu'?vMenuEng():tab==='hourly'?vHourly():tab==='rx'?vRxRegister():tab==='provider'?vProviderReport():tab==='warranty'?vWarranty():tab==='vehicle'?vVehicleHistory():vRisk());
   const all=repRange(), done=all.filter(o=>o.status==='completed'), ref=all.filter(o=>o.status==='refunded');
   let body='',csv=null;
   const sum=(a,k)=>r2(a.reduce((s,o)=>s+o[k],0));
@@ -410,7 +433,7 @@ function vReports(tab){
   }
   window._csv=csv; window._csvName='report-'+tab;
   const needsRange=['valuation','expiry'].indexOf(tab)<0;
-  return head('Insights','Reports with date filters and CSV export')+tabs('reports',reportTabs(),tab)+
+  return head('Insights','Reports with date filters and CSV export')+reportNav(tab)+
     '<div class="bar">'+(needsRange?'<label class="inl">From <input type="date" data-ch="from" value="'+esc(UIS.from)+'"></label><label class="inl">To <input type="date" data-ch="to" value="'+esc(UIS.to)+'"></label>':'')+'<span class="sp"></span>'+(csv?btn('Export CSV','rep-export'):'')+'</div>'+body;
 }
 A['rep-export']=()=>{if(window._csv)downloadCSV(window._csvName,window._csv)};
