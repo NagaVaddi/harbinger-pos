@@ -37,7 +37,7 @@ const AR={
   'Command Center':'مركز القيادة','Catalog':'الأصناف','Stock Room':'المخزون','Guests':'العملاء','Promotions':'العروض','Orders':'الطلبات','Outlets & Registers':'الفروع والصناديق','Insights':'التقارير',
   'Accounts':'الحسابات','E-Invoicing':'الفوترة الإلكترونية','Team':'الفريق','Control Panel':'لوحة التحكم','Online & Delivery':'الطلبات الإلكترونية والتوصيل',
   'Operate':'التشغيل','Grow':'النمو','Money':'المالية','Admin':'الإدارة',
-  'Search':'بحث','Kitchen display':'شاشة المطبخ','Open Register':'فتح الصندوق','Sign out':'تسجيل الخروج',
+  'Search':'بحث','Kitchen display':'شاشة المطبخ','Open POS':'فتح نقطة البيع','Sign out':'تسجيل الخروج',
   'Sign in':'تسجيل الدخول','Username':'اسم المستخدم','Password':'كلمة المرور','Wrong username or password.':'اسم المستخدم أو كلمة المرور غير صحيحة.',
   'Harbinger Register':'صندوق هاربنجر','Held':'معلّقة','Cash in/out':'إيداع / سحب نقدي','Close register':'إغلاق الصندوق','Console':'لوحة الإدارة','Online':'أونلاين',
   'Search item or scan barcode  (F2)':'ابحث عن صنف أو امسح الباركود (F2)','All':'الكل','Dine-in':'داخل المطعم','Takeaway':'سفري','Delivery':'توصيل','+ Guest':'+ عميل',
