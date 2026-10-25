@@ -43,7 +43,7 @@ function vCatalog(tab){
         {h:'Status',r:r=>badge(r.active?'Active':'Archived',r.active?'ok':'')},
         {h:'',cls:'r',r:r=>btn('Edit','item-edit',r.id)+' '+btn('Copy','item-dup',r.id)+' '+btn(r.active?'Archive':'Restore','item-toggle',r.id)}],rows,'No items match.')+pg.html;
   }
-  return head('Catalog','Items, categories and prices')+tabs('catalog',[['items','Items'],['categories','Categories']],tab)+body;
+  return head(tr('Products'),'Items, categories and prices')+tabs('catalog',[['items','Items'],['categories','Categories']],tab)+body;
 }
 C.catf=el=>{UIS.q.catf=el.value;render()};
 function itemForm(it){
