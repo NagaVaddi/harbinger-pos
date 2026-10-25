@@ -111,25 +111,28 @@ A['cat-del']=d=>{
 /* ================= Stock Room ================= */
 function vStock(tab){
   tab=tab||'onhand'; let body='';
-  const T=[['onhand','Manage Stock'],['receive','Receive'],['lots','Stock Batches'],['ledger','Stock History'],['reorder','Reorder'],['suppliers','Suppliers'],['pos','Purchase orders']].concat(bm('breakdown')?[['breakdown','Breakdown']]:[],bm('weighed')?[['scale','Weighing Management']]:[],[['barcodes','Barcode Config']]);
+  const T=[['onhand','Manage Stock'],['receive','Receive'],['lots','Stock Batches'],['ledger','Stock History'],['reorder','Reorder'],['suppliers','Suppliers'],['pos','Purchase orders']].concat(bm('breakdown')?[['breakdown','Breakdown']]:[],bm('weighed')?[['scale','Weighing Management']]:[],[['count','Stock Count'],['barcodes','Barcode Config']]);
   if(tab==='onhand'){
-    const rows=DB.items.filter(i=>i.track&&match(UIS.q.stock,[i.name,i.sku,i.barcode]));
-    body='<div class="bar">'+searchBox('stock','Search items')+'<span class="sp"></span>'+btn('Export CSV','stock-export')+'</div>'+
-    tbl([{h:'Item',r:r=>'<b>'+esc(r.name)+'</b>'},{h:'On hand',cls:'r',r:r=>stockOf(r.id)},{h:'Reorder at',cls:'r',r:r=>r.reorder},{h:'Value',cls:'r',r:r=>fmt(DB.lots.filter(l=>l.itemId===r.id&&l.qty>0).reduce((a,l)=>a+l.qty*l.cost,0))},
-      {h:'Nearest expiry',r:r=>{const e=nearestExpiry(r.id);return e?fmtDate(e):'—'}},
+    const all_=DB.items.filter(i=>i.track&&match(UIS.q.stock,[i.name,i.sku,i.barcode])), pg=paged('stock',all_);
+    const last=id=>{const m=DB.movements.find(x=>x.itemId===id);return m?m.ts:0}, dmg=id=>rq(-DB.movements.filter(m=>m.itemId===id&&m.type==='waste').reduce((a,m)=>a+m.qty,0));
+    body='<div class="bar">'+searchBox('stock','Search here…')+'<span class="sp"></span>'+btn('Export CSV','stock-export')+'</div>'+
+    tbl([{h:'Product',r:r=>'<b>'+esc(r.name)+'</b><br><span class="muted sm">'+esc(r.sku||'')+'</span>'},{h:'Total',cls:'r',r:r=>stockOf(r.id)},{h:'Available',cls:'r',r:r=>sellableOf(r.id)},{h:'Damaged',cls:'r',r:r=>dmg(r.id)||'—'},{h:'Last activity',r:r=>last(r.id)?fmtDT(last(r.id)):'—'},
+      {h:'Reorder at',cls:'r',r:r=>r.reorder},{h:'Value',cls:'r',r:r=>fmt(DB.lots.filter(l=>l.itemId===r.id&&l.qty>0).reduce((a,l)=>a+l.qty*l.cost,0))},
       {h:'Status',r:r=>{const s=stockOf(r.id);return s<=0?badge('Out','bad'):s<=r.reorder?badge('Low','warn'):badge('OK','ok')}},
-      {h:'',cls:'r',r:r=>btn('Receive','stock-receive',r.id)+' '+btn('Adjust','stock-adjust',r.id)}],rows,'No tracked items.');
+      {h:'',cls:'r',r:r=>btn('Receive','stock-receive',r.id)+' '+btn('Adjust','stock-adjust',r.id)}],pg.rows,'No data found.')+pg.html;
   }else if(tab==='receive'){
     body='<div class="card narrow"><h2>Receive stock</h2><p class="muted">Record a delivery as a new lot with expiry and cost.</p><div id="recvForm">'+recvForm()+'</div>'+btn('Receive stock','do-receive',null,'primary')+'</div>';
   }else if(tab==='lots'){
-    const rows=DB.lots.filter(l=>l.qty!==0&&match(UIS.q.lots,[(itemById(l.itemId)||{}).name,l.lotNo])).sort((a,b)=>(a.expiry||9e15)-(b.expiry||9e15));
-    body='<div class="bar">'+searchBox('lots','Search item or lot')+'</div>'+tbl([{h:'Item',r:r=>esc((itemById(r.itemId)||{}).name||'?')},{h:'Lot',r:r=>esc(r.lotNo)},{h:'Qty',cls:'r',r:r=>r.qty},{h:'Cost',cls:'r',r:r=>fmt(r.cost)},
-      {h:'Expiry',r:r=>r.expiry?(r.expiry<now()?badge(fmtDate(r.expiry)+' · expired','bad'):r.expiry<daysFromNow(14)?badge(fmtDate(r.expiry)+' · soon','warn'):fmtDate(r.expiry)):'—'},{h:'Received',r:r=>fmtDate(r.receivedAt)}],rows,'No lots.');
+    const rows=DB.lots.filter(l=>l.qty!==0&&match(UIS.q.lots,[(itemById(l.itemId)||{}).name,l.lotNo,(itemById(l.itemId)||{}).barcode])).sort((a,b)=>(a.expiry||9e15)-(b.expiry||9e15)), pg=paged('lots',rows);
+    const dmg=l=>rq(-DB.movements.filter(m=>m.lotId===l.id&&m.type==='waste').reduce((a,m)=>a+m.qty,0)), upd=l=>Math.max(l.receivedAt||0,...DB.movements.filter(m=>m.lotId===l.id).map(m=>m.ts));
+    body='<div class="bar">'+searchBox('lots','Search here…')+'<span class="sp"></span><a class="btn primary" href="#/stock/receive">+ Add</a></div>'+tbl([{h:'Product name',r:r=>'<b>'+esc((itemById(r.itemId)||{}).name||'?')+'</b>'},{h:'Batch number',r:r=>esc(r.lotNo)},{h:'Bar code',r:r=>esc((itemById(r.itemId)||{}).barcode||'—')},{h:'Total stock',cls:'r',r:r=>r.qty},{h:'Damaged stock',cls:'r',r:r=>dmg(r)||'—'},
+      {h:'Expiry',r:r=>r.expiry?(r.expiry<now()?badge(fmtDate(r.expiry)+' · expired','bad'):r.expiry<daysFromNow(14)?badge(fmtDate(r.expiry)+' · soon','warn'):fmtDate(r.expiry)):'—'},{h:'Created at',r:r=>r.receivedAt?fmtDT(r.receivedAt):'—'},{h:'Updated at',r:r=>fmtDT(upd(r))}],pg.rows,'No data found.')+pg.html;
   }else if(tab==='ledger'){
     const rows=DB.movements.filter(m=>match(UIS.q.ledger,[(itemById(m.itemId)||{}).name,m.ref,m.type])).slice(0,300);
     body='<div class="bar">'+searchBox('ledger','Search item, type or reference')+'<span class="sp"></span>'+btn('Export CSV','ledger-export')+'</div>'+tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'Item',r:r=>esc((itemById(r.itemId)||{}).name||'?')},{h:'Type',r:r=>badge(r.type,r.qty>0?'ok':'')},{h:'Qty',cls:'r',r:r=>(r.qty>0?'+':'')+r.qty},{h:'Ref',r:r=>esc(r.ref)+(r.note?' · '+esc(r.note):'')},{h:'By',r:r=>esc(userName(r.user))}],rows,'No movements yet.');
   }else if(tab==='reorder'){
     body=vReorder();
+  }else if(tab==='count'){body=vStockCount();
   }else if(tab==='breakdown'){body=vBreakdown();
   }else if(tab==='scale'){body=vScaleSetup();
   }else if(tab==='barcodes'){body=vBarcodes();
