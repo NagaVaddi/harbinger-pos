@@ -60,7 +60,7 @@ function save(){
   try{localStorage.setItem(KEY,JSON.stringify(DB))}
   catch(e){ if(typeof toast==='function')toast('Could not save: browser storage is full or blocked.','err') }
 }
-function migrate(){ DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0};
+function migrate(){ DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0};
   if(typeof ensureAccounts==='function')ensureAccounts();
   if(typeof ensureEinv==='function')ensureEinv();
   DB.online=DB.online||[]; DB.itemMap=DB.itemMap||{}; DB.channels=DB.channels||{}; }
@@ -69,7 +69,7 @@ function audit(action,detail){
   if(DB.audit.length>1500)DB.audit.length=1500;
 }
 
-function seed(){
+function seed(type){
   const t=now();
   const catAr=['برجر','ساندويتشات ولفائف','أطباق جانبية','مشروبات','حلويات'];
   const cats=['Burgers','Wraps & Sandwiches','Sides','Drinks','Desserts'].map((n,i)=>({id:'c'+(i+1),name:n,nameAr:catAr[i]}));
@@ -98,10 +98,10 @@ function seed(){
     {id:'u2',name:'Manager',username:'manager',role:'manager',pin:'2345',pass:hashPw('manager','manager123'),active:true},
     {id:'u3',name:'Cashier',username:'cashier',role:'cashier',pin:'3456',pass:hashPw('cashier','cashier123'),active:true}
   ];
-  return {
+  const db={
     v:1,
     settings:{business:'Harbinger Demo Restaurant',trn:'100000000000003',address:'Dubai, UAE',phone:'',currency:'AED',vatPct:5,taxInclusive:true,country:'AE',taxLabel:'VAT',receiptLang:'both',charges:[],countryCode:'971',
-      footer:'Thank you for dining with us!',pointsPerAed:0.1,pointValue:0.1,caps:{admin:100,manager:30,cashier:10},allowNegative:false,theme:'A',mode:'auto'},
+      footer:'Thank you for dining with us!',pointsPerAed:0.1,pointValue:0.1,caps:{admin:100,manager:30,cashier:10},allowNegative:false,businessType:'restaurant',blockExpired:true,theme:'A',mode:'auto'},
     users:users,categories:cats,items:items,lots:lots,movements:movements,
     customers:[
       {id:'g1',name:'Walk-in Sample',phone:'0500000001',email:'',points:25,visits:0,spend:0,notes:'',created:t},
@@ -114,6 +114,7 @@ function seed(){
     sessions:[],vouchers:[],orders:[],held:[],suppliers:[{id:'s1',name:'Fresh Foods Trading',phone:'',email:'',terms:'Net 30'}],pos:[],audit:[],
     seq:{order:0,po:0}
   };
+  return typeof finishSeed==='function'?finishSeed(db,type||'restaurant',t):db;
 }
 
 /* ---------- auth & permissions ---------- */
@@ -122,7 +123,11 @@ const PERMS={
   manager:['dashboard','catalog','stock','guests','promos','outlets','orders','reports','register','refund','discount_override','voucher','kitchen','online'],
   kitchen:['kitchen'],
   accountant:['dashboard','accounts','reports','orders'],
-  cashier:['register','guests','orders','online']
+  cashier:['register','guests','orders','online'],
+  waiter:['register','orders'],
+  stock_keeper:['stock'],
+  pharmacist:['register','guests','orders','stock','online','controlled'],
+  billing:['register','guests','orders']
 };
 const can=p=>!!(ME&&PERMS[ME.role]&&PERMS[ME.role].indexOf(p)>=0);
 function login(username,pw){
@@ -139,7 +144,11 @@ function roleCap(){ return DB.settings.caps[ME?ME.role:'cashier']||0 }
 
 /* ---------- stock ---------- */
 const lotsOf=id=>DB.lots.filter(l=>l.itemId===id&&l.qty!==0).sort((a,b)=>(a.expiry||9e15)-(b.expiry||9e15)||a.receivedAt-b.receivedAt);
-const stockOf=id=>r2(DB.lots.filter(l=>l.itemId===id).reduce((s,l)=>s+l.qty,0));
+const rq=n=>Math.round((Number(n)+Number.EPSILON)*1000)/1000;
+const isExpired=l=>!!(l.expiry&&l.expiry<now());
+const stockOf=id=>rq(DB.lots.filter(l=>l.itemId===id).reduce((s,l)=>s+l.qty,0));
+/* what can legally be sold: when "block expired" is on, expired lots do not count */
+const sellableOf=id=>rq(stockOf(id)-(DB.settings.blockExpired?DB.lots.filter(l=>l.itemId===id&&l.qty>0&&isExpired(l)).reduce((s,l)=>s+l.qty,0):0));
 function nearestExpiry(id){const l=DB.lots.filter(x=>x.itemId===id&&x.qty>0&&x.expiry).sort((a,b)=>a.expiry-b.expiry)[0];return l?l.expiry:null}
 function logMove(itemId,lotId,type,qty,ref,note){
   DB.movements.unshift({id:uid('m'),ts:now(),itemId:itemId,lotId:lotId,type:type,qty:qty,ref:ref||'',user:ME?ME.id:null,note:note||''});
@@ -154,13 +163,14 @@ function deductStock(itemId,qty,ref){
   let need=qty; const allocs=[];
   for(const l of lotsOf(itemId)){
     if(need<=0)break; if(l.qty<=0)continue;
-    const take=Math.min(l.qty,need); l.qty=r2(l.qty-take); need=r2(need-take);
+    if(DB.settings.blockExpired&&isExpired(l))continue;
+    const take=Math.min(l.qty,need); l.qty=rq(l.qty-take); need=rq(need-take);
     allocs.push({lotId:l.id,qty:take}); logMove(itemId,l.id,'sale',-take,ref,'');
   }
   if(need>0){
     let l=DB.lots.filter(x=>x.itemId===itemId).sort((a,b)=>b.receivedAt-a.receivedAt)[0];
     if(!l){const it=itemById(itemId);l={id:uid('l'),itemId:itemId,lotNo:'NEG',expiry:null,qty:0,cost:it?it.cost:0,receivedAt:now()};DB.lots.push(l)}
-    l.qty=r2(l.qty-need); allocs.push({lotId:l.id,qty:need}); logMove(itemId,l.id,'sale',-need,ref,'oversold');
+    l.qty=rq(l.qty-need); allocs.push({lotId:l.id,qty:need}); logMove(itemId,l.id,'sale',-need,ref,'oversold');
   }
   return allocs;
 }
@@ -168,7 +178,7 @@ function returnStock(allocs,itemId,ref){
   (allocs||[]).forEach(a=>{
     let l=byId(DB.lots,a.lotId);
     if(!l){const it=itemById(itemId);l={id:uid('l'),itemId:itemId,lotNo:'RET',expiry:null,qty:0,cost:it?it.cost:0,receivedAt:now()};DB.lots.push(l)}
-    l.qty=r2(l.qty+a.qty); logMove(itemId,l.id,'refund',a.qty,ref,'');
+    l.qty=rq(l.qty+a.qty); logMove(itemId,l.id,'refund',a.qty,ref,'');
   });
 }
 

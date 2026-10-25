@@ -60,7 +60,7 @@ td .btn.sm{min-height:30px;padding:4px 10px}
 .main{min-width:0;display:flex;flex-direction:column}
 .top{display:flex;align-items:center;gap:10px;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
 .biz{font-weight:600}.menu{display:none;background:none;border:0;font-size:22px;color:var(--text)}
-.view{padding:24px;max-width:1280px;width:100%}
+.view{padding:24px 28px;width:100%;max-width:none}
 .scrim{display:none}
 .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px;flex-wrap:wrap}
 .pa{display:flex;gap:8px}
@@ -271,3 +271,8 @@ th,.tile,.pick,.pal-i{text-align:start}th.r,td.r,.r{text-align:end}
 
 .warnbox{background:#FFF3CD;color:#6b4e00;border-radius:10px;padding:10px 12px;margin-bottom:8px}
 :root[data-mode="dark"] .warnbox{background:#3b2f06;color:#ffe08a}
+
+/* use the whole screen: wider cards on large monitors */
+@media (min-width:1500px){.cols3{grid-template-columns:repeat(3,1fr)}.dks{grid-template-columns:repeat(6,1fr)}.kpi.dk strong{font-size:24px}}
+@media (min-width:1900px){.view{padding:28px 40px}.cols2{gap:20px}}
+.main{min-width:0;width:100%}
