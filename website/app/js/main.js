@@ -26,7 +26,7 @@ const ico=n=>'<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="'+
 
 function applyTheme(){
   const s=DB?DB.settings:{theme:'A',mode:'auto'}, h=document.documentElement;
-  h.setAttribute('data-theme',s.theme||'A'); h.setAttribute('data-mode',s.mode||'auto');
+  h.setAttribute('data-theme',s.theme||'A'); h.setAttribute('data-mode',s.mode||'auto'); h.setAttribute('data-density',s.density||'compact');
 }
 let _fails=0,_lockUntil=0;
 function loginHtml(){
