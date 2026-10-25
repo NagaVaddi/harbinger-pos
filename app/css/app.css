@@ -248,3 +248,9 @@ th,.tile,.pick,.pal-i{text-align:start}th.r,td.r,.r{text-align:end}
 #toasts{right:auto;left:auto;inset-inline-end:16px}
 [dir=rtl] .rcpt{text-align:right}
 @media (max-width:820px){[dir=rtl] .side{left:auto;right:0;transform:translateX(100%)}[dir=rtl] .navopen .side{transform:none}}
+
+/* logo mark: navy parts follow currentColor so they stay visible on light and dark surfaces */
+.lbrand svg{color:var(--navy)}
+:root[data-mode="dark"] .lbrand svg{color:#fff}
+@media (prefers-color-scheme:dark){:root[data-mode="auto"] .lbrand svg{color:#fff}}
+.sb svg,.mk{color:#fff}
