@@ -6,20 +6,20 @@
 Object.assign(MOD0,{jobs:0,credit:0,vehicle:0,measure:0,breakdown:0,serial:0});
 Object.assign(BIZ,{
   tailor:{name:'Tailor / stitching shop',desc:'Job orders with measurements, advance and balance, due dates, tailor commissions',icon:'🧵',modules:{jobs:1,measure:1,provider:1,credit:1,online:0,delivery:0},types:['takeaway'],defType:'takeaway',minMargin:0,blockExpired:false,
-    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'Walk-in','Catalog':'Garments & fabric','Stock Room':'Fabric & supplies','Harbinger Register':'Harbinger Tailor POS','Job orders':'Job orders'},
+    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'Walk-in','Products':'Garments & fabric','Stock Room':'Fabric & supplies','Harbinger Register':'Harbinger Tailor POS','Job orders':'Job orders'},
     jobKind:'tailor',dash:[['brief'],['trend','jobsBoard'],['overdue','mixCat'],['providers','top'],['credit','mixPay'],['ops','money'],['recent']]},
   butcher:{name:'Butcher shop',desc:'Weighed cuts, cutting notes, carcass breakdown and yield, fresh-stock expiry, customer credit',icon:'🥩',modules:{weighed:1,expiry:1,credit:1,breakdown:1},types:['takeaway','delivery'],defType:'takeaway',minMargin:12,blockExpired:true,
     notePresets:['Minced','Cubed','Curry cut','Bone-in','Boneless','Sliced thin','Whole'],
-    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'Counter','Delivery':'Home delivery','Catalog':'Meat & products','Stock Room':'Cold room'},
+    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'Counter','Delivery':'Home delivery','Products':'Meat & products','Stock Room':'Cold room'},
     dash:[['brief'],['trend','heat'],['fastslow','expiry'],['yield','mixCat'],['top','leaders'],['credit','mixPay'],['ops','money'],['recent']]},
   grocery:{name:'Grocery shop',desc:'Quick sales, weighed items, customer credit (khata) with aging, expiry control',icon:'🧺',modules:{scanFirst:1,weighed:1,expiry:1,credit:1},types:['takeaway','delivery'],defType:'takeaway',minMargin:6,blockExpired:true,
-    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'In-store','Delivery':'Home delivery','Catalog':'Products','Stock Room':'Inventory'},
+    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'In-store','Delivery':'Home delivery','Products':'Products','Stock Room':'Inventory'},
     dash:[['brief'],['trend','basket'],['credit','fastslow'],['expiry','stockout'],['mixPay','leaders'],['ops','money'],['recent']]},
   garage:{name:'Garage / auto workshop',desc:'Job cards with vehicle details, estimates, parts and labour, mechanics, service reminders, fleet credit',icon:'🔧',modules:{jobs:1,vehicle:1,provider:1,credit:1,online:0,delivery:0},types:['takeaway'],defType:'takeaway',minMargin:10,blockExpired:false,
-    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'Walk-in','Orders':'Invoices','Catalog':'Parts & services','Stock Room':'Parts store','Harbinger Register':'Harbinger Garage POS','Job orders':'Job cards'},
+    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'Walk-in','Orders':'Invoices','Products':'Parts & services','Stock Room':'Parts store','Harbinger Register':'Harbinger Garage POS','Job orders':'Job cards'},
     jobKind:'garage',dash:[['brief'],['trend','jobsBoard'],['overdue','serviceDue'],['labourParts','providers'],['credit','mixPay'],['stockout','top'],['ops','money'],['recent']]},
   tyre:{name:'Tyre shop',desc:'Tyres by size and brand, fitting services, DOT code and warranty register, vehicle plate, fleet credit',icon:'🛞',modules:{vehicle:1,serial:1,provider:1,credit:1,scanFirst:1,online:0,delivery:0},types:['takeaway'],defType:'takeaway',minMargin:12,blockExpired:false,
-    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'Walk-in','Catalog':'Tyres & services','Stock Room':'Tyre store','Harbinger Register':'Harbinger Tyre POS'},
+    terms:{'Guests':'Customers','+ Guest':'+ Customer','Guest':'Customer','Takeaway':'Walk-in','Products':'Tyres & services','Stock Room':'Tyre store','Harbinger Register':'Harbinger Tyre POS'},
     dash:[['brief'],['trend','tyreSizes'],['brandmix','labourParts'],['providers','top'],['stockout','credit'],['mixPay','leaders'],['ops','money'],['recent']]}
 });
 Object.assign(CATALOGS,{

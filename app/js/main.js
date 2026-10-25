@@ -3,7 +3,7 @@
 
 const ROUTES={
   dashboard:{perm:'dashboard',label:'Dashboard',group:'Operate',v:vDashboard},
-  catalog:{perm:'catalog',label:'Catalog',group:'Operate',v:vCatalog},
+  catalog:{perm:'catalog',label:'Products',group:'Operate',v:vCatalog},
   stock:{perm:'stock',label:'Stock Room',group:'Operate',v:vStock},
   guests:{perm:'guests',label:'Guests',group:'Grow',v:vGuests},
   promos:{perm:'promos',label:'Promotions',group:'Grow',v:vPromos},
