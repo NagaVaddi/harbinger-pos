@@ -12,7 +12,21 @@ Harbinger will hold other people's sales, customer and accounting data, so this 
 
 > Until the Cloud connection is finished, **do not onboard real customers onto the demo**.
 
-## What the Cloud server enforces today (tested: 127 automated checks)
+## Repository & web-app hardening (added 2024)
+
+| Area | Measure |
+|---|---|
+| **CI** | GitHub Actions workflow runs `npm ci`, `npm test` (618 checks) and `npm audit --audit-level=high` on every push/PR to `main`. |
+| **Dependency updates** | Dependabot scans npm packages and GitHub Actions weekly and opens PRs automatically. |
+| **Secret scanning** | Automated test (`tests/security.test.js`) scans every tracked file for AWS keys, private-key PEM blocks, Firebase admin keys, Slack tokens, OpenAI keys, GitHub tokens, and `client_secret`-style patterns — fails the build if any match. |
+| **No dangerous APIs** | Same test asserts no `eval()`, `document.write()`, `new Function()`, string-argument `setTimeout`/`setInterval`, or inline event-handler attributes (`onclick=`) in any web-app file. |
+| **Content-Security-Policy** | Both app pages (`website/app/index.html`, `website/order/index.html`) carry a `<meta>` CSP: `script-src 'self'`; `object-src 'none'`; `base-uri 'self'`; `connect-src 'self' https: localhost`. GitHub Pages cannot add HTTP headers, so the meta tag is the available mechanism; move to a proper server for the header equivalent. |
+| **Referrer policy** | `Referrer-Policy: no-referrer` meta on both app pages. |
+| **No third-party scripts** | Automated test confirms no `<script src="https://…">` in either app page. |
+| **Allow-list `.gitignore`** | The repo uses a deny-all / allow-list `.gitignore` (`/*` then `!` for safe paths) — credential files, `.env`, `.pem`, `.key`, Firebase admin JSON, and `server/cloud/*.db` are blocked from ever being staged. |
+| **Parameterised SQL** | Cloud server test asserts no string-template (`${}`) inside `db.prepare()`/`db.exec()` calls. |
+
+## What the Cloud server enforces today (tested: 142 automated checks)
 
 **Identity & sessions**
 * Passwords: scrypt (N=32768, r=8, p=1) with a unique salt; policy (10+ chars, not common, not containing name/email). Constant-time comparison; dummy hash for unknown emails so response time does not reveal which emails exist.

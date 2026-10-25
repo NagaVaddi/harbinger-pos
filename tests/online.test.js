@@ -5,7 +5,7 @@ global.document={addEventListener(){},querySelector(){return null},querySelector
 global.window={addEventListener(){},open(){}};global.location={hash:'',protocol:'file:',origin:'null'};global.matchMedia=()=>({matches:false});global.render=()=>{};
 const jsQR=require('jsqr');
 const {DOMParser}=require('@xmldom/xmldom');
-const srcFiles=['vendor/qrcode','core','ui','regions','business','vertical','business_trades','trades','partners','reports_hub','stock_config','console','accounts','einvoice','insights','online','register'];
+const srcFiles=['vendor/qrcode','core','ui','regions','business','vertical','business_trades','trades','slips','partners','reports_hub','stock_config','console','accounts','einvoice','insights','online','register'];
 const src=srcFiles.map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
 const names='load,A,R,computeTotals,finalizeOrder,balMap,LID,zatcaQrBase64,zatcaDecode,qrSvg,einvStamp,einvXml,validateTrn,vEinvoice,vOnline,vInbox,vApps,vQrCodes,vOnlineSetup,menuSnapshot,receiptHtml,resolveItem,postAggrSettlement,newOnlineCount,onKdsChange,sessionStats,hexToB64,sha256,qrcode,eInvBlock,briefing,setK,kdsTickets'.split(',');
 const run=new Function(src+';modal=function(){return null};toast=function(){};return {'+names.join(',')+',get DB(){return DB},setME(u){ME=u}};');

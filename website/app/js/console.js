@@ -48,9 +48,9 @@ function vCatalog(tab){
 C.catf=el=>{UIS.q.catf=el.value;render()};
 function itemForm(it){
   it=it||{active:true,tax:true,track:true,reorder:10,price:0,cost:0,categoryId:DB.categories[0]&&DB.categories[0].id};
-  return '<div class="form2">'+field('Name','name',it.name,{req:1,af:1})+field('Arabic name','nameAr',it.nameAr)+field('SKU','sku',it.sku)+field('Barcode','barcode',it.barcode)+
+  return '<div class="form2">'+field('Name','name',it.name,{req:1,af:1})+field('Arabic name (optional — filled automatically, you can edit it)','nameAr',it.nameAr)+field('SKU','sku',it.sku)+field('Barcode','barcode',it.barcode)+
     select('Category','categoryId',DB.categories.map(c=>[c.id,c.name]),it.categoryId)+field('Reorder level','reorder',it.reorder,{type:'number',min:0})+
-    field('Price','price',it.price,{type:'number',step:'0.01',min:0})+field('Cost','cost',it.cost,{type:'number',step:'0.01',min:0})+
+    field('Price','price',it.price,{type:'number',step:'0.01',min:0})+field('Cost (optional)','cost',it.cost,{type:'number',step:'0.01',min:0})+
     select('Preferred supplier','supplierId',[['','— none —']].concat(DB.suppliers.map(s=>[s.id,s.name])),it.supplierId||'')+field('Supplier lead time (days)','leadDays',it.leadDays!=null?it.leadDays:2,{type:'number',min:0})+itemExtraFields(it)+'</div>'+
     '<div class="chks">'+check('VAT applies','tax',it.tax)+check('Track stock','track',it.track)+check('Active (sellable)','active',it.active)+itemExtraChecks(it)+'</div>';
 }
@@ -67,7 +67,7 @@ function saveItem(id,d){
 }
 A['item-edit']=d=>{
   const id=d.id, it=id?itemById(id):null;
-  modal({title:it?'Edit item':'New item',body:itemForm(it),wide:true,actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>saveItem(id,formData(el))}]});
+  modal({title:it?'Edit item':'New item',body:itemForm(it),wide:true,onOpen:bindArabicAuto,actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>saveItem(id,formData(el))}]});
 };
 A['item-dup']=d=>{const it=itemById(d.id);if(!it)return;const c=Object.assign({},it,{id:uid('i'),name:it.name+' (copy)',sku:it.sku+'-C',barcode:''});DB.items.push(c);save();toast('Duplicated');render()};
 A['item-toggle']=d=>{const it=itemById(d.id);it.active=!it.active;audit('item.toggle',it.name);save();render()};
@@ -323,7 +323,7 @@ function vOutlets(tab){
       {h:'',cls:'r',r:r=>btn(r.closedAt?'Z report':'Live X report','z-view',r.id)}],rows,'No register sessions yet.');
   }else if(tab==='vouchers'){
     const rows=DB.vouchers.slice().reverse();
-    body=tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'Type',r:r=>badge(r.type,r.type==='in'?'ok':'warn')},{h:'Amount',cls:'r',r:r=>fmt(r.amount)},{h:'Reason',r:r=>esc(r.reason)},{h:'By',r:r=>esc(userName(r.userId))}],rows,'No cash vouchers or refunds yet.');
+    body=tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'Type',r:r=>badge(r.type,r.type==='in'?'ok':'warn')},{h:'Amount',cls:'r',r:r=>fmt(r.amount)},{h:'Reason',r:r=>esc(r.reason)},{h:'By',r:r=>esc(userName(r.userId))},{h:'',cls:'r',r:r=>btn('Slip','tx-slip',r.id)}],rows,'No cash vouchers or refunds yet.');
   }else{
     body='<div class="bar">'+searchBox('counters','Search here…')+'<span class="sp"></span>'+btn('+ Add','counter-edit',null,'primary')+'</div>'+tbl([{h:'#',r:r=>DB.counters.indexOf(r)+1},{h:'Name',r:r=>'<b>'+esc(r.name)+'</b>'},{h:'Username',r:r=>esc(r.code)},
       {h:'Staff / shifts',r:r=>{const ss=DB.sessions.filter(s=>s.counterId===r.id);return new Set(ss.map(s=>s.openedBy)).size+' staff · '+ss.length+' shifts'}},{h:'Active session',r:r=>{const s=openSession(r.id);return s?badge(userName(s.openedBy),'ok')+' <span class="muted sm">since '+fmtDT(s.openedAt)+'</span>':'—'}},{h:'Status',r:r=>r.active?badge('Active','ok'):badge('Disabled','')},
@@ -458,7 +458,7 @@ function vSettings(){
   '<h2>Loyalty</h2><div class="form2">'+field('Points earned per currency unit','pointsPerAed',s.pointsPerAed,{type:'number',step:'0.01',min:0})+field('Currency value of 1 point','pointValue',s.pointValue,{type:'number',step:'0.01',min:0})+'</div>'+
   '<h2>Discount caps (max % without manager approval)</h2><div class="form2">'+field('Admin %','capA',s.caps.admin,{type:'number',min:0})+field('Manager %','capM',s.caps.manager,{type:'number',min:0})+field('Cashier %','capC',s.caps.cashier,{type:'number',min:0})+'</div>'+
   '<h2>Appearance & behaviour</h2><div class="form2">'+select('Brand theme','theme',[['A','Theme A — blue & cyan (default)'],['B','Theme B — navy & red']],s.theme)+select('Display size','density',[['compact','Compact (more on screen)'],['comfortable','Comfortable (larger)']],s.density||'compact')+select('Mode','mode',[['auto','Match device'],['light','Light'],['dark','Dark']],s.mode)+'</div>'+
-  check('Allow selling below zero stock','allowNegative',s.allowNegative)+'<div class="bar mt"><button class="btn primary" type="submit">Save settings</button></div></form>'+
+  check('Allow invoicing when stock is zero or short','allowNegative',s.allowNegative)+'<div class="bar mt"><button class="btn primary" type="submit">Save settings</button></div></form>'+
   '<section class="card narrow mt"><h2>Data</h2><p class="muted sm">This demo stores data in this browser only. Back up regularly.</p><div class="bar">'+btn('Download backup (JSON)','backup')+btn('Restore from backup','restore')+btn('Load sample sales','demo-data')+btn('Reset to demo data','reset','', 'danger')+'</div></section>'+
   '<section class="card narrow mt"><h2>Audit log</h2>'+tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'User',r:r=>esc(userName(r.user))},{h:'Action',r:r=>esc(r.action)},{h:'Detail',r:r=>esc(r.detail)}],DB.audit.slice(0,40),'No activity yet.')+'</section>';
 }

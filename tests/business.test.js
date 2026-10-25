@@ -4,7 +4,7 @@ const dir=path.join(__dirname,'..','website','app','js')+'/';
 global.localStorage={_d:{},getItem(k){return this._d[k]||null},setItem(k,v){this._d[k]=v}};global.sessionStorage=global.localStorage;
 global.document={addEventListener(){},querySelector(){return null},querySelectorAll(){return[]},documentElement:{setAttribute(k,v){this[k]=v}}};
 global.window={addEventListener(){},open(){}};global.location={hash:'',protocol:'file:',origin:'null'};global.matchMedia=()=>({matches:false});global.render=()=>{};
-const files=['vendor/qrcode','core','ui','regions','business','vertical','business_trades','trades','partners','reports_hub','stock_config','console','accounts','einvoice','insights','dashboard','online','register'];
+const files=['vendor/qrcode','core','ui','regions','business','vertical','business_trades','trades','slips','partners','reports_hub','stock_config','console','accounts','einvoice','insights','dashboard','online','register'];
 const src=files.map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
 const names='load,A,R,regReset,computeTotals,finalizeOrder,balMap,LID,switchBusinessType,BIZ,bizType,bm,biz,tr,typeLabel,rolesForType,roleLabel,ROLE_SETS,PERMS,can,parseScan,pushLine,tilesHtml,sellableOf,stockOf,rq,vDashboard,vSettings,vReports,vAccounts,vTeam,itemForm,guestForm,genDemoData,logRx,vRxRegister,vProviderReport,providerRevenue,insurerLedger,vClaims,claimsOutstanding,expiryBuckets,applyCountry,stockLeft,postVoucher,postStockRevaluation,bizBriefing,briefing,buildCatalog,sessionStats'.split(',');
 const run=new Function(src+';modal=function(){return null};toast=function(){};return {'+names.join(',')+',get DB(){return DB},setME(u){ME=u}};');

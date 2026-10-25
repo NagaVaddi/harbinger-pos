@@ -6,11 +6,11 @@ const dir=path.join(__dirname,'..','website','app','js')+'/';
 global.localStorage={_d:{},getItem(k){return this._d[k]||null},setItem(k,v){this._d[k]=v}};global.sessionStorage=global.localStorage;
 global.document={addEventListener(){},querySelector(){return null},querySelectorAll(){return[]},documentElement:{setAttribute(k,v){this[k]=v}}};
 global.window={addEventListener(){},open(){},print(){}};global.location={hash:'',protocol:'file:',origin:'null'};global.matchMedia=()=>({matches:false});global.render=()=>{};
-const files=['vendor/qrcode','core','ui','regions','business','vertical','business_trades','trades','partners','reports_hub','stock_config','console','accounts','einvoice','insights','dashboard','online','register'];
+const files=['vendor/qrcode','core','ui','regions','business','vertical','business_trades','trades','slips','partners','reports_hub','stock_config','console','accounts','einvoice','insights','dashboard','online','register'];
 const src=files.map(f=>fs.readFileSync(dir+f+'.js','utf8').replace(/^'use strict';/,'')).join('\n');
 const names=['load','A','R','W','UIS','computeTotals','finalizeOrder','balMap','LID','switchBusinessType','BIZ','bm','biz','tr','can','ROLE_SETS','PERMS','parseScan','stockOf','sellableOf','rq','r2',
   'customerLedger','creditBalances','creditBalance','creditAging','creditRoom','creditOwed','postCustomerPayment','jobTotals','jobAdvance','jobBalance','jobOpen','isOverdue','postAdvance','newJobNo','jobHist','jobFlow','doBreakdown','dotAge','recordWarranty',
-  'parseScaleCode','makeScaleCode','scaleCfg','bcCfg','ean13Svg','isEan13','reportGroups','vReportHub','vInvReport','vAccReport','vReports','vJobs','vScaleSetup','vBarcodes','vCreditBook','vBreakdown','vWarranty','vStock','vGuests','vDashboard','genDemoData','demoJobs','demoBreakdowns','scaleOk','bizType','vDrivers','vPromos','vOutlets','vGuests','vCatalog','applyStockDelta','countSummary','vStockCount','vStock'];
+  'parseScaleCode','makeScaleCode','scaleCfg','bcCfg','ean13Svg','isEan13','reportGroups','vReportHub','vInvReport','vAccReport','vReports','vJobs','vScaleSetup','vBarcodes','vCreditBook','vBreakdown','vWarranty','vStock','vGuests','vDashboard','genDemoData','demoJobs','demoBreakdowns','scaleOk','bizType','vDrivers','vPromos','vOutlets','vGuests','vCatalog','applyStockDelta','countSummary','vStockCount','vStock','autoArabic','txSlipHtml','voucherSlip','itemById','saveItem'];
 const run=new Function(src+';modal=function(){return null};toast=function(){};return {'+names.join(',')+',get DB(){return DB},setME(u){ME=u}};');
 const m=run();m.load();
 let pass=0,fail=0;const ok=(l,c,x)=>{c?pass++:fail++;console.log((c?'PASS ':'FAIL ')+l+(x?' — '+x:''))};
@@ -162,6 +162,25 @@ m.switchBusinessType('grocery');m.setME(m.DB.users[0]);
  S.diffs.forEach(x=>m.applyStockDelta(x.it,x.d,c.no));
  ok('posting a count changes stock by the differences and the books still balance',m.stockOf(a.id)===va-3&&m.stockOf(b.id)===vb+2&&bal()===0);
  ok('stock count tab renders list',m.vStock('count').includes('Start a stock count')&&m.vStock('count').includes('CNT-0001'));
+}
+
+// ---------- Arabic names, optional cost, selling without stock, transaction slips ----------
+m.switchBusinessType('restaurant');m.setME(m.DB.users[0]);
+{const DB=m.DB;
+ ok('Arabic name is generated from the English name: dictionary words, units and codes',m.autoArabic('Chicken Burger')==='دجاج برجر'&&m.autoArabic('Cola 330ml').includes('كولا')&&m.autoArabic('Cola 330ml').includes('330 مل')&&m.autoArabic('Michelin 205/55R16').endsWith('205/55R16')&&m.autoArabic('')==='');
+ ok('unknown words are transliterated (approximate, editable) and never come out empty',/^[؀-ۿ ]+$/.test(m.autoArabic('Zorbo'))&&m.autoArabic('Zorbo').length>=3);
+ const n0=DB.items.length;
+ m.saveItem(null,{name:'Falafel Wrap Large',nameAr:'',sku:'',barcode:'',categoryId:DB.categories[0].id,price:'15',cost:'',tax:'on',track:'on',reorder:'0',active:'on',supplierId:'',leadDays:''});
+ const ni=DB.items[DB.items.length-1];
+ ok('an item can be saved with no Arabic name and no cost',DB.items.length===n0+1&&ni.name==='Falafel Wrap Large'&&ni.nameAr===''&&ni.cost===0);
+ m.saveItem(ni.id,{name:ni.name,nameAr:'فلافل راب كبير',sku:ni.sku,barcode:'',categoryId:ni.categoryId,price:'15',cost:'',tax:'on',track:'on',reorder:'0',active:'on',supplierId:'',leadDays:''});
+ ok('the Arabic name can be edited and is kept',m.itemById(ni.id).nameAr==='فلافل راب كبير');
+ const sess=openSession(), o=sale(sess,[{itemId:ni.id,qty:2}]);
+ ok('an invoice can be made for an item with zero stock and zero cost (stock goes negative, books balance)',o&&o.total>0&&m.stockOf(ni.id)<=0&&bal()===0&&m.DB.settings.allowNegative===true);
+ const tracked=DB.items.find(i=>i.track&&m.stockOf(i.id)>0&&!i.weighed);const o2=sale(sess,[{itemId:tracked.id,qty:1}]);ok('and with stock too',!!o2&&bal()===0);
+ const html=m.txSlipHtml({title:'Payment received',no:'RC-000001',party:'A <b>Customer</b>',rows:[['Received as','Cash']],amount:50,amountLabel:'RECEIVED'});
+ ok('transaction slip shows title, number, party, amount and signature line, with customer text escaped',html.includes('PAYMENT RECEIVED')&&html.includes('RC-000001')&&html.includes('RECEIVED')&&html.includes('50.00')&&html.includes('Signature')&&!html.includes('<b>Customer</b>'));
+ const vs=m.voucherSlip({id:'vabc123',type:'out',amount:12,reason:'Ice delivery',ts:Date.now(),userId:DB.users[0].id});ok('cash voucher slip',vs.title==='Cash paid out'&&vs.no.startsWith('CV-')&&m.txSlipHtml(vs).includes('Ice delivery'));
 }
 
 // ---------- gating ----------

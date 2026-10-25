@@ -80,7 +80,7 @@ A['r-exit']=()=>{if(can('dashboard'))location.hash='#/dashboard';else{logout();l
 /* ---------- cart ---------- */
 A['r-add']=d=>addItemFlow(itemById(d.id));
 A['r-browse']=()=>{R.browse=!R.browse;render()};
-A['r-inc']=d=>{const l=byId2(d.id);if(!l)return;const it=itemById(l.itemId);if(stockLeft(it)<=0&&!DB.settings.allowNegative){toast('No more stock for '+it.name,'err');return}l.qty++;render()};
+A['r-inc']=d=>{const l=byId2(d.id);if(!l)return;const it=itemById(l.itemId);if(stockLeft(it)<=0&&(!DB.settings.allowNegative||expiredOnly(it))){toast('No more stock for '+it.name,'err');return}l.qty++;render()};
 A['r-dec']=d=>{const l=byId2(d.id);if(!l)return;l.qty--;if(l.qty<=0)R.cart=R.cart.filter(x=>x!==l);render()};
 A['r-del']=d=>{R.cart=R.cart.filter(x=>x.key!==d.id);render()};
 const byId2=k=>R.cart.find(x=>x.key===k);
@@ -172,7 +172,7 @@ const redrawPay=()=>{const b=$('#paybody');if(b){b.innerHTML=payBody();const a=$
 A['r-pay']=()=>{
   if(!R.cart.length)return;
   const T=computeTotals(R);
-  for(const l of T.lines){if(l.it.track&&!DB.settings.allowNegative&&sellableOf(l.it.id)<l.qty){toast('Not enough sellable stock for '+l.it.name,'err');return}}
+  for(const l of T.lines){if(l.it.track&&(!DB.settings.allowNegative||expiredOnly(l.it))&&sellableOf(l.it.id)<l.qty){toast('Not enough sellable stock for '+l.it.name,'err');return}}
   const mg=ticketMargin(T), mm=minMargin();
   if(mm>0&&T.total>0&&mg.pct<mm){
     if(!can('discount_override')&&!R.marginOk){requireManager('Profit guard: margin on this ticket is '+Math.round(mg.pct)+'% (minimum '+mm+'%)',()=>{R.marginOk=true;A['r-pay']()});return}
@@ -206,7 +206,7 @@ A['pay-done']=()=>{
    Used by the register and by online / delivery-app orders. Returns the order, or null (with a toast) if it cannot be created. */
 function finalizeOrder(S,sess,payments,change,extra){
   const T=computeTotals(S); if(!S.cart.length)return null;
-  for(const l of T.lines){if(l.it.track&&!DB.settings.allowNegative&&sellableOf(l.it.id)<l.qty){toast("Not enough sellable stock for "+l.it.name,"err");return null}}
+  for(const l of T.lines){if(l.it.track&&(!DB.settings.allowNegative||expiredOnly(l.it))&&sellableOf(l.it.id)<l.qty){toast("Not enough sellable stock for "+l.it.name,"err");return null}}
   const ct=byId(DB.counters,sess.counterId); DB.seq.order++;
   const no=ct.code+"-"+String(DB.seq.order).padStart(5,"0");
   const lines=T.lines.map(l=>{
@@ -239,7 +239,7 @@ A['r-voucher']=()=>{
   modal({title:'Cash in / out',body:'<div class="form2">'+select('Type','type',[['in','Cash in (add to drawer)'],['out','Cash out (paid out)']],'out')+field('Amount','amount','',{type:'number',step:'0.01',min:0,af:1})+'</div>'+field('Reason (required)','reason',''),
     actions:[{label:'Cancel'},{label:'Record',cls:'primary',fn:el=>{
       const f=formData(el),amt=r2(num(f.amount)); if(amt<=0||!f.reason.trim()){toast('Amount and reason are required','err');return false}
-      const rec=()=>{const cv={id:uid('v'),sessionId:s.id,ts:now(),type:f.type,amount:amt,reason:f.reason.trim(),userId:ME.id};DB.vouchers.push(cv);postCashVoucher(cv);audit('voucher',f.type+' '+amt+' '+f.reason.trim());save();toast('Recorded');render()};
+      const rec=()=>{const cv={id:uid('v'),sessionId:s.id,ts:now(),type:f.type,amount:amt,reason:f.reason.trim(),userId:ME.id};DB.vouchers.push(cv);postCashVoucher(cv);audit('voucher',f.type+' '+amt+' '+f.reason.trim());save();toast('Recorded');render();setTimeout(()=>showTxSlip(voucherSlip(cv)),0)};
       if(amt>VOUCHER_LIMIT&&!can('voucher'))requireManager('Cash '+f.type+' of '+money(amt)+' exceeds '+money(VOUCHER_LIMIT),rec);else rec();
     }}]});
 };

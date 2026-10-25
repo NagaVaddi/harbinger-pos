@@ -23,6 +23,9 @@ function requirePharmacist(reason,cb){
     }}]});
 }
 
+/* expired stock can never be sold, even when selling without stock is allowed */
+const expiredOnly=it=>!!(it&&it.track&&DB.settings.blockExpired&&stockOf(it.id)>0&&sellableOf(it.id)<=0);
+
 /* ---------- adding items to the ticket ---------- */
 function pushLine(line,it){
   const plain=!it.weighed&&!line.rx&&!line.provider&&!line.note&&!line.serial;
@@ -31,7 +34,7 @@ function pushLine(line,it){
 }
 function addItemFlow(it,presetQty){
   if(!it)return;
-  if(stockLeft(it)<=0&&!DB.settings.allowNegative){toast(it.name+(DB.settings.blockExpired&&stockOf(it.id)>0?' — only expired stock left':' is out of stock'),'err');return}
+  if(stockLeft(it)<=0&&(!DB.settings.allowNegative||expiredOnly(it))){toast(it.name+(DB.settings.blockExpired&&stockOf(it.id)>0?' — only expired stock left':' is out of stock'),'err');return}
   const line={key:uid('l'),itemId:it.id,qty:presetQty||1,note:''}, steps=[];
   if(it.weighed&&!presetQty)steps.push(cb=>weightModal(it,null,w=>{line.qty=w;cb()}));
   if(it.rx&&bm('rx'))steps.push(cb=>rxModal(it,r=>{line.rx=r;cb()}));
@@ -88,7 +91,7 @@ function tilesHtml(items){
       const vs=items.filter(x=>x.group===i.group), left=vs.reduce((a,x)=>a+(x.track?Math.max(0,sellableOf(x.id)):1e9),0), prices=vs.map(x=>x.price), pr=Math.min.apply(null,prices)===Math.max.apply(null,prices)?fmt(prices[0]):fmt(Math.min.apply(null,prices))+'+';
       out.push('<button type="button" class="tile'+(left<=0?' out':'')+'" data-act="r-variants" data-id="'+esc(i.group)+'"'+(left<=0?' disabled':'')+'><span class="tn">'+esc(i.group)+'</span><span class="tp">'+pr+'</span><span class="ts">'+vs.length+' options</span></button>');
       return}
-    const left=stockLeft(i), out_=left<=0&&!DB.settings.allowNegative;
+    const left=stockLeft(i), out_=left<=0&&(!DB.settings.allowNegative||expiredOnly(i));
     out.push('<button type="button" class="tile'+(out_?' out':'')+'" data-act="r-add" data-id="'+i.id+'"'+(out_?' disabled':'')+'><span class="tn">'+esc(dn(i))+'</span><span class="tp">'+fmt(i.price)+(i.weighed?' / '+esc(i.unit||'kg'):'')+'</span>'+
       (i.track&&left<=i.reorder&&left>0?'<span class="ts">'+rq(left)+' '+tr('left')+'</span>':'')+(out_?'<span class="ts bad">'+tr('Out of stock')+'</span>':'')+(i.rx&&bm('rx')?'<span class="ts">Rx</span>':'')+'</button>');
   });

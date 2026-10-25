@@ -1,6 +1,7 @@
 # Allow-list: ignore everything, then re-include only what belongs to the Harbinger POS project.
 /*
 !/.gitignore
+!/.github/
 !/README.md
 !/website/
 !/server/

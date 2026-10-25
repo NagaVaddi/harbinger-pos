@@ -44,7 +44,7 @@ A['cust-pay']=d=>{
     actions:[{label:tr('Cancel')},{label:'Record payment',cls:'primary',fn:el=>{const f=formData(el),a=r2(num(f.amount));
       if(a<=0){toast('Enter the amount received','err');return false} if(a>bal+0.005){toast('That is more than the '+fmt(bal)+' owed','err');return false}
       try{const v=f.method==='bank'?postVoucher({type:'Receipt',narration:'Bank payment from '+cu.name,entries:[{ledgerId:LID('bank'),dr:a,cr:0},{ledgerId:customerLedger(cu.id).id,dr:0,cr:a}],ref:{kind:'custpay',id:cu.id}}):postCustomerPayment(cu,f.method,a);
-        save();toast('Recorded '+v.no);render()}catch(e){toast(e.message,'err');return false}}}]});
+        save();toast('Recorded '+v.no);render();setTimeout(()=>showTxSlip({title:'Payment received',no:v.no,party:cu.name,rows:[['Received as',PAYLABEL[f.method]||f.method],['Balance before',fmt(bal)],['Balance after',fmt(r2(bal-a))]],amount:a,amountLabel:'RECEIVED'}),0)}catch(e){toast(e.message,'err');return false}}}]});
 };
 A['cust-stmt']=d=>{
   const cu=byId(DB.customers,d.id), l=customerLedger(cu.id), rows=stmtRows(l.id,0,now()+1e6);
@@ -198,7 +198,7 @@ A['job-adv']=d=>{
   modal({title:'Advance — '+j.no,body:'<p class="muted sm">Balance due: <b>'+money(bal)+'</b></p><div class="form2">'+field('Amount','amt','',{type:'number',step:'0.01',min:0,af:1})+select('Paid by','m',[['cash','Cash'],['card','Card'],['wallet','Wallet / QR'],['bank','Bank transfer']],'cash')+'</div>',enter:el=>$('.btn.primary',el).click(),
     actions:[{label:tr('Cancel')},{label:'Record advance',cls:'primary',fn:el=>{const f=formData(el),a=r2(num(f.amt));if(a<=0){toast('Enter an amount','err');return false}if(a>bal+0.005){toast('More than the balance due','err');return false}
       try{if(f.m==='bank'){const v=postVoucher({type:'Receipt',narration:'Advance for '+j.no,entries:[{ledgerId:LID('bank'),dr:a,cr:0},{ledgerId:LID('advances'),dr:0,cr:a}],ref:{kind:'advance',id:j.id}});j.advances.push({id:uid('a'),ts:now(),method:'bank',amount:a,by:ME.id,voucher:v.no})}else postAdvance(j,f.m,a);
-        audit('job.advance',j.no+' '+a);save();toast('Advance recorded');render();setTimeout(()=>A['job-open']({id:j.id}),0)}catch(e){toast(e.message,'err');return false}}}]});
+        audit('job.advance',j.no+' '+a);save();toast('Advance recorded');render();const lastAdv=j.advances[j.advances.length-1];setTimeout(()=>showTxSlip({title:'Advance receipt',no:lastAdv.voucher||j.no,party:custName(j.customerId),rows:[['Job',j.no],['Work',j.title||''],['Paid by',PAYLABEL[f.m]||f.m],['Balance still due',fmt(jobBalance(j))]],amount:a,amountLabel:'ADVANCE'},[{label:'Open job',keep:true,fn:()=>{closeModal();A['job-open']({id:j.id});return false}}]),0)}catch(e){toast(e.message,'err');return false}}}]});
 };
 A['job-next']=d=>{
   const j=byId(DB.jobs,d.id), ns=j.nextService||{};
