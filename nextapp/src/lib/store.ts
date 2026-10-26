@@ -2,7 +2,7 @@
 // Lightweight in-browser store backed by localStorage (demo mode).
 // In Cloud mode this will be replaced by API calls to server/cloud/.
 
-import { Settings, Product, Customer, Order, Job, Voucher, StockBatch } from './types';
+import { Settings, Product, Customer, Order, Job, Voucher, StockBatch, Table, Kitchen, KOT } from './types';
 
 export interface DB {
   settings: Settings;
@@ -12,6 +12,9 @@ export interface DB {
   jobs: Job[];
   vouchers: Voucher[];
   batches: StockBatch[];
+  tables: Table[];
+  kitchens: Kitchen[];
+  kots: KOT[];
   _version: number;
 }
 
@@ -38,6 +41,9 @@ function defaultDB(): DB {
     jobs: [],
     vouchers: [],
     batches: [],
+    tables: [],
+    kitchens: [],
+    kots: [],
     _version: 1,
   };
 }

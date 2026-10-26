@@ -75,6 +75,54 @@ export interface Order {
   counterId?: string;
   ts: string;
   status: 'open' | 'paid' | 'void' | 'refund';
+  // Restaurant extensions
+  tableId?: string;
+  tableName?: string;
+  restaurantStatus?: 'draft' | 'pending_verification' | 'verified' | 'in_kitchen' | 'ready' | 'served';
+  verificationPin?: string;
+  pinExpiry?: number;
+}
+
+export interface Table {
+  id: string;
+  number: string;
+  name?: string;
+  seats: number;
+  status: 'available' | 'occupied' | 'bill_requested' | 'reserved';
+  currentOrderId?: string;
+  section?: string;
+}
+
+export interface Kitchen {
+  id: string;
+  name: string;
+  color: string;
+  categories: string[];
+  printerIp?: string;
+  printerPort?: number;
+  active: boolean;
+}
+
+export interface KOTItem {
+  productId: string;
+  name: string;
+  qty: number;
+  note?: string;
+}
+
+export interface KOT {
+  id: string;
+  orderId: string;
+  orderNo: string;
+  tableId?: string;
+  tableName?: string;
+  kitchenId: string;
+  kitchenName: string;
+  kitchenColor: string;
+  items: KOTItem[];
+  status: 'new' | 'accepted' | 'preparing' | 'ready' | 'served';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Job {

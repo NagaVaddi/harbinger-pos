@@ -5,7 +5,7 @@ import { Settings } from './types';
 
 interface POSContext {
   db: DB;
-  save: (updater: (db: DB) => DB) => void;
+  save: (updater: (db: DB) => DB | void) => void;
   settings: Settings;
 }
 
@@ -14,9 +14,11 @@ const Ctx = createContext<POSContext | null>(null);
 export function POSProvider({ children }: { children: React.ReactNode }) {
   const [db, setDB] = useState<DB>(() => loadDB());
 
-  const save = useCallback((updater: (db: DB) => DB) => {
+  const save = useCallback((updater: (db: DB) => DB | void) => {
     setDB(prev => {
-      const next = updater({ ...prev });
+      const copy = JSON.parse(JSON.stringify(prev)) as DB;
+      const result = updater(copy);
+      const next = (result !== undefined ? result : copy) as DB;
       saveDB(next);
       return next;
     });
