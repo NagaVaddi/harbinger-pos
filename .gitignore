@@ -9,6 +9,10 @@
 !/package.json
 !/package-lock.json
 !/SECURITY.md
+!/nextapp/
+# nextapp build output and local installs are not committed
+nextapp/.next/
+nextapp/node_modules/
 !/POS_Harbinger_Original_Product_Spec.md
 # never commit runtime data or secrets, even inside allowed folders
 server/data.json
