@@ -34,6 +34,25 @@ export interface Product {
   hasSerial?: boolean;
   isWeighed?: boolean;
   hasExpiry?: boolean;
+  kitchenId?: string;
+}
+
+export interface Staff {
+  id: string;
+  name: string;
+  staffId: string;
+  password: string;
+  role: 'admin' | 'waiter' | 'kitchen';
+  kitchenId?: string;
+  active: boolean;
+}
+
+export interface Session {
+  staffId: string;
+  staffName: string;
+  role: 'admin' | 'waiter' | 'kitchen';
+  kitchenId?: string;
+  kitchenName?: string;
 }
 
 export interface Customer {

@@ -71,7 +71,7 @@ function KitchenModal({ kitchen, onClose, onSave }: {
 
 export default function KitchenAdminPage() {
   const { db, save, settings } = usePOS();
-  const [tab, setTab] = useState<'kitchens' | 'categories'>('kitchens');
+  const [tab, setTab] = useState<'kitchens' | 'categories' | 'products'>('kitchens');
   const [editKitchen, setEditKitchen] = useState<Kitchen | null | 'new'>(null);
 
   // All unique product categories
@@ -126,7 +126,7 @@ export default function KitchenAdminPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '1px solid var(--border)' }}>
-        {([['kitchens', 'Kitchens'], ['categories', 'Category → Printer']] as const).map(([key, label]) => (
+        {([['kitchens', 'Kitchens'], ['categories', 'Category → Printer'], ['products', 'Product → Kitchen']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer',
             color: tab === key ? 'var(--text)' : 'var(--text2)',
@@ -260,6 +260,70 @@ export default function KitchenAdminPage() {
                         ) : (
                           <span style={{ fontStyle: 'italic' }}>Screen only</span>
                         )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Product Assignment Tab */}
+      {tab === 'products' && (
+        <div>
+          <div style={{ color: 'var(--text2)', fontSize: 13, marginBottom: 20 }}>
+            Override the kitchen for specific products. This takes priority over category routing.
+          </div>
+          {db.kitchens.length === 0 ? (
+            <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--text2)' }}>
+              Create kitchen sections first in the Kitchens tab.
+            </div>
+          ) : db.products.length === 0 ? (
+            <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--text2)' }}>
+              No products found. Add products first.
+            </div>
+          ) : (
+            <table className="tbl" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Category</th>
+                  <th>Kitchen Override</th>
+                </tr>
+              </thead>
+              <tbody>
+                {db.products.filter(p => p.active).map(prod => {
+                  const assignedKitchen = prod.kitchenId ? db.kitchens.find(k => k.id === prod.kitchenId) : undefined;
+                  const categoryKitchen = prod.category ? db.kitchens.find(k => k.categories.includes(prod.category!)) : undefined;
+                  return (
+                    <tr key={prod.id}>
+                      <td style={{ fontWeight: 600 }}>{prod.name}</td>
+                      <td style={{ color: 'var(--text2)', fontSize: 13 }}>
+                        {prod.category || '—'}
+                        {categoryKitchen && (
+                          <span style={{ marginLeft: 6, fontSize: 11, color: categoryKitchen.color }}>→ {categoryKitchen.name}</span>
+                        )}
+                      </td>
+                      <td>
+                        <select
+                          className="inp"
+                          style={{ padding: '6px 10px', fontSize: 13, minWidth: 160 }}
+                          value={assignedKitchen?.id || ''}
+                          onChange={e => {
+                            const kitchenId = e.target.value || undefined;
+                            save(d => {
+                              const p = d.products.find(x => x.id === prod.id);
+                              if (p) p.kitchenId = kitchenId;
+                            });
+                          }}
+                        >
+                          <option value="">— Use category routing —</option>
+                          {db.kitchens.filter(k => k.active).map(k => (
+                            <option key={k.id} value={k.id}>{k.name}</option>
+                          ))}
+                        </select>
                       </td>
                     </tr>
                   );

@@ -13,7 +13,8 @@ function ProductModal({
   onSave: (p: Product) => void;
   onClose: () => void;
 }) {
-  const { settings } = usePOS();
+  const { settings, db } = usePOS();
+  const activeKitchens = db.kitchens.filter(k => k.active);
   const isNew = !product?.id;
   const [form, setForm] = useState<Partial<Product>>(product ?? { active: true, taxable: true, stock: 0, price: 0 });
 
@@ -93,11 +94,22 @@ function ProductModal({
             Has expiry
           </label>
         </div>
+        {settings.bizType === 'restaurant' && activeKitchens.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <label style={{ fontSize: 12, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Kitchen Section (override category routing)</label>
+            <select className="inp" value={form.kitchenId ?? ''} onChange={e => set('kitchenId', e.target.value || undefined)}>
+              <option value="">— Use category routing —</option>
+              {activeKitchens.map(k => (
+                <option key={k.id} value={k.id}>{k.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={() => {
             if (!form.name?.trim()) return alert('Name required');
-            onSave({ id: form.id ?? uid(), name: form.name!, nameAr: form.nameAr, sku: form.sku, barcode: form.barcode, price: form.price ?? 0, cost: form.cost, category: form.category, unit: form.unit, stock: form.stock ?? 0, minStock: form.minStock, taxable: form.taxable ?? true, active: form.active ?? true, isWeighed: form.isWeighed, hasExpiry: form.hasExpiry });
+            onSave({ id: form.id ?? uid(), name: form.name!, nameAr: form.nameAr, sku: form.sku, barcode: form.barcode, price: form.price ?? 0, cost: form.cost, category: form.category, unit: form.unit, stock: form.stock ?? 0, minStock: form.minStock, taxable: form.taxable ?? true, active: form.active ?? true, isWeighed: form.isWeighed, hasExpiry: form.hasExpiry, kitchenId: form.kitchenId });
           }}>
             {isNew ? 'Add product' : 'Save changes'}
           </button>

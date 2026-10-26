@@ -49,6 +49,8 @@ export default function RestaurantOrderPage({ params }: { params: Promise<{ tabl
   const [orderId, setOrderId] = useState<string>(activeOrder?.id || '');
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
+  const [pinAttempts, setPinAttempts] = useState(0);
+  const [pinLocked, setPinLocked] = useState(false);
   const [payMethod, setPayMethod] = useState('cash');
   const [cash, setCash] = useState('');
   const [note, setNote] = useState('');
@@ -129,33 +131,36 @@ export default function RestaurantOrderPage({ params }: { params: Promise<{ tabl
     setStep('qr');
   };
 
+  const MAX_PIN_ATTEMPTS = 3;
+
   const handleVerifyPin = () => {
+    if (pinLocked) return;
     const order = db.orders.find(o => o.id === orderId);
     if (!order?.verificationPin) return;
     if (pinInput === order.verificationPin) {
-      // Create KOTs per kitchen
+      // Create KOTs per kitchen — per-product routing takes priority over category routing
       save(d => {
         const o = d.orders.find(x => x.id === orderId);
         if (!o) return;
         o.restaurantStatus = 'in_kitchen';
 
-        // Group lines by kitchen
-        const kitchenMap = new Map<string, { kitchen: typeof d.kitchens[0]; items: KOTItem[] }>();
+        const kitchenMap = new Map<string, { kitchen: typeof d.kitchens[0] | undefined; items: KOTItem[] }>();
         for (const line of o.lines) {
           const prod = d.products.find(p => p.id === line.productId);
-          const cat = prod?.category || '';
-          const kitchen = d.kitchens.find(k => k.active && k.categories.includes(cat));
+          // Per-product kitchenId takes priority, else fall back to category routing
+          let kitchen = prod?.kitchenId ? d.kitchens.find(k => k.active && k.id === prod.kitchenId) : undefined;
+          if (!kitchen) {
+            const cat = prod?.category || '';
+            kitchen = d.kitchens.find(k => k.active && k.categories.includes(cat));
+          }
           const kid = kitchen?.id || '__default__';
-          const kname = kitchen?.name || 'Main Kitchen';
-          const kcolor = kitchen?.color || '#4f8ef7';
-          if (!kitchenMap.has(kid)) kitchenMap.set(kid, { kitchen: kitchen as typeof d.kitchens[0], items: [] });
+          if (!kitchenMap.has(kid)) kitchenMap.set(kid, { kitchen, items: [] });
           kitchenMap.get(kid)!.items.push({ productId: line.productId, name: line.name, qty: line.qty, note: line.note });
         }
 
         for (const [kid, { kitchen, items }] of kitchenMap) {
-          const kotId = uid();
           d.kots.push({
-            id: kotId, orderId: orderId, orderNo: o.no,
+            id: uid(), orderId: orderId, orderNo: o.no,
             tableId, tableName: o.tableName,
             kitchenId: kid, kitchenName: kitchen?.name || 'Main Kitchen',
             kitchenColor: kitchen?.color || '#4f8ef7',
@@ -166,8 +171,22 @@ export default function RestaurantOrderPage({ params }: { params: Promise<{ tabl
       });
       setStep('kitchen');
       setPinError('');
+      setPinAttempts(0);
     } else {
-      setPinError('Wrong PIN. Ask the customer to show the PIN from their screen.');
+      const attempts = pinAttempts + 1;
+      setPinAttempts(attempts);
+      if (attempts >= MAX_PIN_ATTEMPTS) {
+        setPinLocked(true);
+        setPinError(`Too many wrong attempts. Please ask the customer to re-scan the QR code.`);
+        // Reset order back to pending so customer can re-verify
+        save(d => {
+          const o = d.orders.find(x => x.id === orderId);
+          if (o) { o.restaurantStatus = 'pending_verification'; o.verificationPin = undefined; }
+        });
+      } else {
+        setPinError(`Wrong PIN. ${MAX_PIN_ATTEMPTS - attempts} attempt${MAX_PIN_ATTEMPTS - attempts === 1 ? '' : 's'} left.`);
+      }
+      setPinInput('');
     }
   };
 
@@ -237,10 +256,21 @@ export default function RestaurantOrderPage({ params }: { params: Promise<{ tabl
               <div style={{ color: 'var(--text2)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>No items yet</div>
             ) : (
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {lines.map(l => (
+                {lines.map(l => {
+                  const prod = db.products.find(p => p.id === l.productId);
+                  let kitchen = prod?.kitchenId ? db.kitchens.find(k => k.id === prod.kitchenId) : undefined;
+                  if (!kitchen && prod?.category) kitchen = db.kitchens.find(k => k.categories.includes(prod.category!));
+                  return (
                   <div key={l.productId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, fontSize: 13 }}>
-                      <div>{l.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {l.name}
+                        {kitchen ? (
+                          <span style={{ background: kitchen.color + '33', color: kitchen.color, fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, border: `1px solid ${kitchen.color}` }}>{kitchen.name}</span>
+                        ) : (
+                          <span title="No kitchen assigned" style={{ fontSize: 12, color: 'var(--yellow)' }}>⚠️</span>
+                        )}
+                      </div>
                       <div style={{ color: 'var(--text2)', fontSize: 11 }}>{fmtCurrency(l.price, settings.currency)} each</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -250,7 +280,8 @@ export default function RestaurantOrderPage({ params }: { params: Promise<{ tabl
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>{fmtCurrency(l.price * l.qty, settings.currency)}</div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -315,6 +346,21 @@ export default function RestaurantOrderPage({ params }: { params: Promise<{ tabl
               <span style={{ fontSize: 16 }}>⏳</span>
               Waiting for customer to confirm...
             </div>
+
+            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 12, fontSize: 13 }}
+              onClick={() => {
+                // Cancel this order and go back to order step
+                save(d => {
+                  const o = d.orders.find(x => x.id === orderId);
+                  if (o) o.status = 'void';
+                  const t = d.tables.find(x => x.id === tableId);
+                  if (t) { t.status = 'available'; t.currentOrderId = undefined; }
+                });
+                setOrderId('');
+                setStep('order');
+              }}>
+              ← Edit Order
+            </button>
           </div>
 
           {/* Demo shortcut */}
@@ -358,11 +404,34 @@ export default function RestaurantOrderPage({ params }: { params: Promise<{ tabl
                 />
               ))}
             </div>
+            {pinAttempts > 0 && !pinLocked && (
+              <div style={{ fontSize: 12, color: 'var(--yellow)', marginBottom: 8, textAlign: 'center' }}>
+                Attempt {pinAttempts} of {MAX_PIN_ATTEMPTS}
+              </div>
+            )}
             {pinError && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{pinError}</div>}
-            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 14 }}
-              onClick={handleVerifyPin} disabled={pinInput.length < 4}>
-              Confirm & Send to Kitchen
-            </button>
+            {pinLocked ? (
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 14 }}
+                onClick={() => {
+                  const newPin = genPin();
+                  save(d => {
+                    const o = d.orders.find(x => x.id === orderId);
+                    if (o) {
+                      o.restaurantStatus = 'pending_verification';
+                      o.verificationPin = newPin;
+                      o.pinExpiry = Date.now() + 10 * 60 * 1000;
+                    }
+                  });
+                  setPinLocked(false); setPinAttempts(0); setPinError(''); setPinInput(''); setStep('qr');
+                }}>
+                Re-send QR to Customer
+              </button>
+            ) : (
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 14 }}
+                onClick={handleVerifyPin} disabled={pinInput.length < 4}>
+                Confirm & Send to Kitchen
+              </button>
+            )}
           </div>
         </div>
       )}

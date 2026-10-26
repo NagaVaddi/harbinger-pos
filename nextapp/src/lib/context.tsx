@@ -1,18 +1,21 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { DB, loadDB, saveDB } from './store';
-import { Settings } from './types';
+import { DB, loadDB, saveDB, loadSession, saveSession } from './store';
+import { Settings, Session } from './types';
 
 interface POSContext {
   db: DB;
   save: (updater: (db: DB) => DB | void) => void;
   settings: Settings;
+  session: Session | null;
+  setSession: (s: Session | null) => void;
 }
 
 const Ctx = createContext<POSContext | null>(null);
 
 export function POSProvider({ children }: { children: React.ReactNode }) {
   const [db, setDB] = useState<DB>(() => loadDB());
+  const [session, setSessionState] = useState<Session | null>(() => loadSession());
 
   const save = useCallback((updater: (db: DB) => DB | void) => {
     setDB(prev => {
@@ -22,6 +25,11 @@ export function POSProvider({ children }: { children: React.ReactNode }) {
       saveDB(next);
       return next;
     });
+  }, []);
+
+  const setSession = useCallback((s: Session | null) => {
+    saveSession(s);
+    setSessionState(s);
   }, []);
 
   // Sync across tabs
@@ -36,7 +44,7 @@ export function POSProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ db, save, settings: db.settings }}>
+    <Ctx.Provider value={{ db, save, settings: db.settings, session, setSession }}>
       {children}
     </Ctx.Provider>
   );

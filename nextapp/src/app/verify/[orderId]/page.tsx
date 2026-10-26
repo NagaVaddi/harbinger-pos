@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import { loadDB, saveDB } from '@/lib/store';
 import { fmtCurrency } from '@/lib/fmt';
 
@@ -11,6 +11,13 @@ export default function VerifyPage({ params }: { params: Promise<{ orderId: stri
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
 
+  // Voice recording
+  const [recording, setRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
   useEffect(() => {
     const db = loadDB();
     const o = db.orders.find(x => x.id === orderId);
@@ -21,6 +28,31 @@ export default function VerifyPage({ params }: { params: Promise<{ orderId: stri
       setPin(o.verificationPin || '');
     }
   }, [orderId]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+    } catch {
+      setError('Microphone access denied. You can still confirm by tapping the button below.');
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+  };
 
   if (!order || !settings) {
     return (
@@ -47,10 +79,9 @@ export default function VerifyPage({ params }: { params: Promise<{ orderId: stri
 
   const handleConfirm = () => {
     if (order.pinExpiry && Date.now() > order.pinExpiry) {
-      setError('This order confirmation link has expired. Please ask the waiter to resend.');
+      setError('This confirmation link has expired. Please ask the waiter to resend.');
       return;
     }
-    // Update order in localStorage
     const db = loadDB();
     const o = db.orders.find(x => x.id === orderId);
     if (o) {
@@ -58,7 +89,6 @@ export default function VerifyPage({ params }: { params: Promise<{ orderId: stri
       saveDB(db);
       setConfirmed(true);
       setPin(o.verificationPin || '');
-      // Trigger storage event for cross-tab sync
       const key = 'harbinger_pos';
       window.dispatchEvent(new StorageEvent('storage', { key, newValue: JSON.stringify(db), storageArea: localStorage }));
     }
@@ -83,7 +113,7 @@ export default function VerifyPage({ params }: { params: Promise<{ orderId: stri
           <>
             <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px 0' }}>Review Your Order</h2>
             <p style={{ color: '#8b95a3', fontSize: 14, margin: '0 0 24px 0' }}>
-              Please check your order below and tap Confirm when ready.
+              Please check your order below and confirm when ready.
             </p>
 
             {/* Order items */}
@@ -108,17 +138,49 @@ export default function VerifyPage({ params }: { params: Promise<{ orderId: stri
             {/* Totals */}
             <div style={{ background: '#181c25', border: '1px solid #2a3040', borderRadius: 12, padding: '14px 16px', marginBottom: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8, color: '#8b95a3' }}>
-                <span>Subtotal</span>
-                <span>{fmtCurrency(order.subtotal, currency)}</span>
+                <span>Subtotal</span><span>{fmtCurrency(order.subtotal, currency)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8, color: '#8b95a3' }}>
-                <span>{settings.taxLabel} ({settings.taxRate}%)</span>
-                <span>{fmtCurrency(order.tax, currency)}</span>
+                <span>{settings.taxLabel} ({settings.taxRate}%)</span><span>{fmtCurrency(order.tax, currency)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 20, paddingTop: 10, borderTop: '1px solid #2a3040' }}>
                 <span>Total</span>
                 <span style={{ color: '#4f8ef7' }}>{fmtCurrency(order.total, currency)}</span>
               </div>
+            </div>
+
+            {/* Optional voice recording */}
+            <div style={{ background: '#181c25', border: '1px solid #2a3040', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Optional: Voice Confirmation</div>
+              <div style={{ fontSize: 12, color: '#8b95a3', marginBottom: 12 }}>
+                Say &quot;Yes, I confirm&quot; to record your verbal agreement (optional, does not block confirmation).
+              </div>
+              {audioUrl ? (
+                <div>
+                  <audio controls src={audioUrl} style={{ width: '100%', height: 36, marginBottom: 8 }} />
+                  <button onClick={() => { setAudioBlob(null); setAudioUrl(null); }} style={{
+                    background: 'none', border: '1px solid #2a3040', color: '#8b95a3', borderRadius: 8,
+                    padding: '6px 12px', cursor: 'pointer', fontSize: 12,
+                  }}>Record again</button>
+                </div>
+              ) : recording ? (
+                <button onClick={stopRecording} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px',
+                  background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: 10,
+                  color: '#ef4444', cursor: 'pointer', fontSize: 14, fontWeight: 600, width: '100%', justifyContent: 'center',
+                }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s infinite' }} />
+                  Recording… Tap to stop
+                </button>
+              ) : (
+                <button onClick={startRecording} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px',
+                  background: 'rgba(79,142,247,0.1)', border: '1px solid #4f8ef7', borderRadius: 10,
+                  color: '#4f8ef7', cursor: 'pointer', fontSize: 14, fontWeight: 600, width: '100%', justifyContent: 'center',
+                }}>
+                  🎙️ Record &quot;Yes, I confirm&quot;
+                </button>
+              )}
             </div>
 
             {error && (
@@ -147,9 +209,7 @@ export default function VerifyPage({ params }: { params: Promise<{ orderId: stri
               Show this PIN to your waiter to send the order to the kitchen:
             </p>
 
-            <div style={{
-              background: '#181c25', border: '2px solid #4f8ef7', borderRadius: 16, padding: '32px 20px', marginBottom: 24,
-            }}>
+            <div style={{ background: '#181c25', border: '2px solid #4f8ef7', borderRadius: 16, padding: '32px 20px', marginBottom: 24 }}>
               <div style={{ fontSize: 12, color: '#8b95a3', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Your One-Time PIN</div>
               <div style={{ fontSize: 64, fontWeight: 900, letterSpacing: 16, color: '#4f8ef7', fontVariantNumeric: 'tabular-nums' }}>
                 {pin}
@@ -168,6 +228,13 @@ export default function VerifyPage({ params }: { params: Promise<{ orderId: stri
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
     </div>
   );
 }

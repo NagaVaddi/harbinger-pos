@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { usePOS } from '@/lib/context';
 
 const BASE_NAV = [
@@ -30,7 +30,8 @@ const SETUP_NAV = { group: 'Setup', items: [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { db, settings } = usePOS();
+  const router = useRouter();
+  const { db, settings, session, setSession } = usePOS();
 
   const isRestaurant = settings.bizType === 'restaurant';
   const readyKOTs = db.kots.filter(k => k.status === 'ready').length;
@@ -103,9 +104,36 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text2)' }}>
-        {settings.currency} · {settings.bizType}
+      {/* Bottom — session info */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', fontSize: 12 }}>
+        {session ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 15 }}>
+                {session.role === 'admin' ? '🔐' : session.role === 'waiter' ? '🍽️' : '👨‍🍳'}
+              </span>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.staffName}</div>
+                <div style={{ color: 'var(--text2)', textTransform: 'capitalize' }}>
+                  {session.role}{session.kitchenName ? ` · ${session.kitchenName}` : ''}
+                </div>
+              </div>
+            </div>
+            <button onClick={() => { setSession(null); router.push('/login'); }} style={{
+              background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text2)',
+              fontSize: 11, padding: '4px 8px', cursor: 'pointer', width: '100%', textAlign: 'left',
+            }}>
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <div style={{ color: 'var(--text2)' }}>
+            {settings.currency} · {settings.bizType}
+            <div style={{ marginTop: 4 }}>
+              <Link href="/login" style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 11 }}>Sign in →</Link>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

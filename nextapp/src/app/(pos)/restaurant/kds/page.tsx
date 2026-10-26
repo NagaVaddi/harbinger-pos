@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { usePOS } from '@/lib/context';
 import { KOT } from '@/lib/types';
 import { now } from '@/lib/fmt';
+import { loadSession } from '@/lib/store';
 
 const COLS: { key: KOT['status']; label: string; color: string }[] = [
   { key: 'new',       label: 'New',       color: '#ef4444' },
@@ -24,8 +25,11 @@ function elapsed(ts: string): string {
 }
 
 export default function KDSPage() {
-  const { db, save } = usePOS();
-  const [selectedKitchen, setSelectedKitchen] = useState<string>('all');
+  const { db, save, session } = usePOS();
+  const isKitchenRole = session?.role === 'kitchen' && session.kitchenId;
+  const [selectedKitchen, setSelectedKitchen] = useState<string>(
+    isKitchenRole ? session!.kitchenId! : 'all'
+  );
   const [tick, setTick] = useState(0);
 
   // Refresh elapsed timers every 10s
@@ -72,18 +76,26 @@ export default function KDSPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Kitchen Display</h1>
-        {/* Kitchen filter */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`btn ${selectedKitchen === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setSelectedKitchen('all')}>All Kitchens</button>
-          {kitchens.map(k => (
-            <button key={k.id} className={`btn ${selectedKitchen === k.id ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setSelectedKitchen(k.id)}
-              style={{ borderLeft: `3px solid ${k.color}` }}>
-              {k.name}
-            </button>
-          ))}
-        </div>
+        {/* Kitchen filter — hidden for kitchen staff (locked to their section) */}
+        {!isKitchenRole && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className={`btn ${selectedKitchen === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setSelectedKitchen('all')}>All Kitchens</button>
+            {kitchens.map(k => (
+              <button key={k.id} className={`btn ${selectedKitchen === k.id ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setSelectedKitchen(k.id)}
+                style={{ borderLeft: `3px solid ${k.color}` }}>
+                {k.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {isKitchenRole && (
+          <div style={{ padding: '6px 12px', background: 'var(--bg3)', borderRadius: 8, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: kitchens.find(k => k.id === selectedKitchen)?.color || 'var(--accent)', display: 'inline-block' }} />
+            {kitchens.find(k => k.id === selectedKitchen)?.name || session?.kitchenName || 'My Kitchen'}
+          </div>
+        )}
         <div style={{ marginLeft: 'auto', color: 'var(--text2)', fontSize: 13 }}>
           {visibleKOTs.length} active tickets
         </div>

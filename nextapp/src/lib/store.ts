@@ -2,7 +2,7 @@
 // Lightweight in-browser store backed by localStorage (demo mode).
 // In Cloud mode this will be replaced by API calls to server/cloud/.
 
-import { Settings, Product, Customer, Order, Job, Voucher, StockBatch, Table, Kitchen, KOT } from './types';
+import { Settings, Product, Customer, Order, Job, Voucher, StockBatch, Table, Kitchen, KOT, Staff } from './types';
 
 export interface DB {
   settings: Settings;
@@ -15,7 +15,25 @@ export interface DB {
   tables: Table[];
   kitchens: Kitchen[];
   kots: KOT[];
+  staff: Staff[];
   _version: number;
+}
+
+const SESSION_KEY = 'harbinger_session';
+
+export function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return null;
+}
+
+export function saveSession(s: import('./types').Session | null) {
+  try {
+    if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    else localStorage.removeItem(SESSION_KEY);
+  } catch { /* ignore */ }
 }
 
 const KEY = 'harbinger_pos';
@@ -44,6 +62,7 @@ function defaultDB(): DB {
     tables: [],
     kitchens: [],
     kots: [],
+    staff: [],
     _version: 1,
   };
 }
