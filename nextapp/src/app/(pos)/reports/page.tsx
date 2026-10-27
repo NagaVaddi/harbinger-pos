@@ -1,13 +1,37 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { usePOS } from '@/lib/context';
+import { useFeature } from '@/components/providers/FeatureProvider';
 import { fmtCurrency, fmtDate } from '@/lib/fmt';
+import { FeatureKey } from '@/lib/types';
+import dynamic from 'next/dynamic';
 
-type Tab = 'sales' | 'stock' | 'vat' | 'customers';
+// Dynamic import to avoid SSR issues with Recharts
+const BarChart = dynamic(() => import('recharts').then(m => m.BarChart), { ssr: false });
+const Bar = dynamic(() => import('recharts').then(m => m.Bar), { ssr: false });
+const LineChart = dynamic(() => import('recharts').then(m => m.LineChart), { ssr: false });
+const Line = dynamic(() => import('recharts').then(m => m.Line), { ssr: false });
+const XAxis = dynamic(() => import('recharts').then(m => m.XAxis), { ssr: false });
+const YAxis = dynamic(() => import('recharts').then(m => m.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import('recharts').then(m => m.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import('recharts').then(m => m.Tooltip), { ssr: false });
+const ResponsiveContainer = dynamic(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false });
+
+type Tab = 'sales' | 'stock' | 'vat' | 'customers' | 'custom';
+type Metric = 'revenue' | 'orders' | 'avg_ticket' | 'tax';
+type GroupBy = 'day' | 'week' | 'product' | 'method';
+type ChartType = 'bar' | 'line';
 
 export default function ReportsPage() {
   const { db, settings } = usePOS();
+  const { isEnabled } = useFeature();
+  const customReportsEnabled = isEnabled(FeatureKey.CUSTOM_REPORTS);
   const [tab, setTab] = useState<Tab>('sales');
+
+  // Custom report state
+  const [metric, setMetric] = useState<Metric>('revenue');
+  const [groupBy, setGroupBy] = useState<GroupBy>('day');
+  const [chartType, setChartType] = useState<ChartType>('bar');
 
   // Date range filter
   const [from, setFrom] = useState(() => {
@@ -37,11 +61,54 @@ export default function ReportsPage() {
   // Customer balances
   const debtors = db.customers.filter(c => (c.balance ?? 0) > 0).sort((a, b) => (b.balance ?? 0) - (a.balance ?? 0));
 
+  // Custom report data computation
+  const customData = useMemo(() => {
+    if (tab !== 'custom') return [];
+    const getVal = (o: (typeof paidOrders)[0]) => {
+      if (metric === 'revenue') return o.total;
+      if (metric === 'orders') return 1;
+      if (metric === 'tax') return o.tax;
+      if (metric === 'avg_ticket') return o.total;
+      return o.total;
+    };
+    const buckets = new Map<string, number[]>();
+    for (const o of paidOrders) {
+      let key: string;
+      if (groupBy === 'day') key = o.ts.slice(0, 10);
+      else if (groupBy === 'week') {
+        const d = new Date(o.ts);
+        const wk = new Date(d); wk.setDate(d.getDate() - d.getDay());
+        key = wk.toISOString().slice(0, 10);
+      } else if (groupBy === 'method') key = o.method ?? 'unknown';
+      else key = '';  // handled below
+      if (groupBy === 'product') {
+        for (const l of o.lines) {
+          const k = l.name ?? l.productId;
+          if (!buckets.has(k)) buckets.set(k, []);
+          buckets.get(k)!.push(metric === 'orders' ? 1 : metric === 'revenue' || metric === 'avg_ticket' ? l.price * l.qty : 0);
+        }
+      } else {
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key)!.push(getVal(o));
+      }
+    }
+    return [...buckets.entries()]
+      .map(([name, vals]) => ({
+        name: name.length > 16 ? name.slice(0, 14) + '…' : name,
+        value: metric === 'avg_ticket'
+          ? vals.reduce((s, v) => s + v, 0) / vals.length
+          : vals.reduce((s, v) => s + v, 0),
+      }))
+      .sort((a, b) => (groupBy === 'day' || groupBy === 'week') ? a.name.localeCompare(b.name) : b.value - a.value)
+      .slice(0, 30);
+  }, [tab, metric, groupBy, paidOrders]);
+
   const tabs: { key: Tab; label: string }[] = [
     { key: 'sales', label: '📊 Sales summary' },
     { key: 'stock', label: '📦 Stock report' },
     { key: 'vat', label: '🧾 VAT summary' },
     { key: 'customers', label: '👥 Customer balances' },
+    ...(customReportsEnabled ? [{ key: 'custom' as Tab, label: '🔮 Custom report' }] : []),
   ];
 
   return (
@@ -163,6 +230,106 @@ export default function ReportsPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {tab === 'custom' && customReportsEnabled && (
+        <div>
+          {/* Builder toolbar */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text2)', display: 'block', marginBottom: 3 }}>Metric</label>
+              <select className="inp" style={{ fontSize: 13 }} value={metric} onChange={e => setMetric(e.target.value as Metric)}>
+                <option value="revenue">Revenue</option>
+                <option value="orders">Orders count</option>
+                <option value="avg_ticket">Avg ticket</option>
+                <option value="tax">Tax collected</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text2)', display: 'block', marginBottom: 3 }}>Group by</label>
+              <select className="inp" style={{ fontSize: 13 }} value={groupBy} onChange={e => setGroupBy(e.target.value as GroupBy)}>
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="product">Product</option>
+                <option value="method">Payment method</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text2)', display: 'block', marginBottom: 3 }}>Chart type</label>
+              <div style={{ display: 'flex', background: 'var(--bg3)', borderRadius: 8, padding: 2 }}>
+                {(['bar', 'line'] as ChartType[]).map(ct => (
+                  <button key={ct} onClick={() => setChartType(ct)} style={{
+                    padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
+                    background: chartType === ct ? 'var(--accent)' : 'transparent',
+                    color: chartType === ct ? '#fff' : 'var(--text2)',
+                  }}>{ct === 'bar' ? '📊 Bar' : '📈 Line'}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text2)' }}>
+              {customData.length} data points
+            </div>
+          </div>
+
+          {customData.length > 0 ? (
+            <div className="card">
+              <div style={{ width: '100%', height: 340 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  {chartType === 'bar' ? (
+                    <BarChart data={customData} margin={{ top: 8, right: 16, bottom: 40, left: 16 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text2)' }} angle={-35} textAnchor="end" interval={0} />
+                      <YAxis tick={{ fontSize: 11, fill: 'var(--text2)' }} />
+                      <Tooltip
+                        contentStyle={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                        formatter={((v: unknown) => { const n = Number(v ?? 0); return metric === 'orders' ? n : fmtCurrency(n, settings.currency); }) as any}
+                      />
+                      <Bar dataKey="value" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  ) : (
+                    <LineChart data={customData} margin={{ top: 8, right: 16, bottom: 40, left: 16 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text2)' }} angle={-35} textAnchor="end" interval={0} />
+                      <YAxis tick={{ fontSize: 11, fill: 'var(--text2)' }} />
+                      <Tooltip
+                        contentStyle={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                        formatter={((v: unknown) => { const n = Number(v ?? 0); return metric === 'orders' ? n : fmtCurrency(n, settings.currency); }) as any}
+                      />
+                      <Line type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} dot={{ r: 3 }} />
+                    </LineChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+
+              {/* Data table */}
+              <div style={{ marginTop: 20, overflowX: 'auto' }}>
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>{groupBy === 'day' ? 'Date' : groupBy === 'week' ? 'Week start' : groupBy === 'product' ? 'Product' : 'Method'}</th>
+                      <th style={{ textAlign: 'right' }}>{metric === 'revenue' ? 'Revenue' : metric === 'orders' ? 'Orders' : metric === 'avg_ticket' ? 'Avg ticket' : 'Tax'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customData.map(d => (
+                      <tr key={d.name}>
+                        <td>{d.name}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          {metric === 'orders' ? d.value : fmtCurrency(d.value, settings.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="card" style={{ textAlign: 'center', padding: 60, color: 'var(--text2)' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🔮</div>
+              <div>No data for this combination. Try changing the date range, metric, or group-by.</div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -260,15 +260,22 @@ export default function RestaurantOrderPage({ params }: { params: Promise<{ tabl
                   const prod = db.products.find(p => p.id === l.productId);
                   let kitchen = prod?.kitchenId ? db.kitchens.find(k => k.id === prod.kitchenId) : undefined;
                   if (!kitchen && prod?.category) kitchen = db.kitchens.find(k => k.categories.includes(prod.category!));
+                  // KOT printer: product override first, then kitchen's printerNo
+                  const kotPrinter = prod?.kotPrinter ?? kitchen?.printerNo;
                   return (
                   <div key={l.productId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, fontSize: 13 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         {l.name}
                         {kitchen ? (
                           <span style={{ background: kitchen.color + '33', color: kitchen.color, fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, border: `1px solid ${kitchen.color}` }}>{kitchen.name}</span>
                         ) : (
                           <span title="No kitchen assigned" style={{ fontSize: 12, color: 'var(--yellow)' }}>⚠️</span>
+                        )}
+                        {kotPrinter && (
+                          <span style={{ background: 'var(--bg3)', color: 'var(--text2)', fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, border: '1px solid var(--border)' }}>
+                            🖨 P{kotPrinter}
+                          </span>
                         )}
                       </div>
                       <div style={{ color: 'var(--text2)', fontSize: 11 }}>{fmtCurrency(l.price, settings.currency)} each</div>

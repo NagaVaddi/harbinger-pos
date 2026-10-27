@@ -1,0 +1,674 @@
+// Harbinger POS/ERP — Prisma Schema
+// Multi-tenant: every model (except Tenant) carries tenantId
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// MULTI-TENANCY
+// ─────────────────────────────────────────────
+
+enum BusinessType {
+  RESTAURANT
+  GROCERY
+  RETAIL
+  PHARMACY
+  CLINIC
+  SALON
+  TAILOR
+  BUTCHER
+  GARAGE
+  TYRE
+  WHOLESALE
+  LOGISTICS
+  ECOMMERCE
+  LAUNDRY
+}
+
+model Tenant {
+  id           String        @id @default(cuid())
+  name         String
+  slug         String        @unique
+  plan         String        @default("starter") // starter | pro | enterprise
+  businessType BusinessType?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  settings            Settings?
+  tenantConfig        TenantConfig?
+  staff               Staff[]
+  products            Product[]
+  categories          Category[]
+  printers            Printer[]
+  customers           Customer[]
+  orders              Order[]
+  kots                KOT[]
+  kitchens            Kitchen[]
+  tables              RestaurantTable[]
+  shifts              Shift[]
+  predefinedNotes     PredefinedNote[]
+  stockBatches        StockBatch[]
+  vouchers            Voucher[]
+  jobs                Job[]
+  featureFlags        TenantFeatureFlag[]
+  auditLogs           AuditLog[]
+  invoiceSettings     TenantInvoiceSettings?
+  employees           Employee[]
+}
+
+model TenantConfig {
+  id           String   @id @default(cuid())
+  tenantId     String   @unique
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Industry-specific extra fields, e.g. { "Plate Number": "", "VIN": "" }
+  customFields Json     @default("{}")
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────
+// FEATURE FLAGS (per-tenant)
+// ─────────────────────────────────────────────
+
+model TenantFeatureFlag {
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  key      String  // matches FeatureKey enum values
+  enabled  Boolean @default(false)
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────────
+
+model Settings {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Basic identity
+  business        String   @default("My Business")
+  address         String?
+  trn             String?  // Tax Registration Number
+  country         String   @default("AE")
+  dialCode        String   @default("+971")
+  currency        String   @default("AED")
+  bizType         String   @default("retail")
+
+  // Tax & pricing
+  taxRate         Float    @default(5)
+  taxLabel        String   @default("VAT")
+  taxInclusive    Boolean  @default(false)
+  serviceCharge   Float    @default(0)
+  roundCash       Boolean  @default(false)
+  allowNegative   Boolean  @default(true)
+  minTicketMargin Float?
+
+  // Discounts & loyalty
+  maxDiscountPct  Float    @default(100)
+  loyaltyEnabled  Boolean  @default(false)
+  loyaltyRate     Float    @default(1)   // points per currency unit
+
+  // Receipt
+  receiptFooter   String?
+  receiptLang     String   @default("en") // en | ar | both
+
+  // UI preferences
+  brandTheme      String   @default("blue")  // blue | green | purple | dark
+  displaySize     String   @default("normal") // compact | normal | large
+
+  // Stored as JSON: BusinessHoursDay[]
+  businessHours   Json?
+
+  updatedAt       DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// STAFF / AUTH
+// ─────────────────────────────────────────────
+
+model Staff {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name         String
+  staffId      String   // human-readable ID (e.g. "EMP001")
+  passwordHash String
+  role         StaffRole
+  kitchenId    String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  shifts       Shift[]
+  orders       Order[]
+
+  @@unique([tenantId, staffId])
+  @@index([tenantId])
+}
+
+enum StaffRole {
+  admin
+  manager
+  waiter
+  kitchen
+  cashier
+}
+
+// ─────────────────────────────────────────────
+// PRODUCTS & CATEGORIES
+// ─────────────────────────────────────────────
+
+model Category {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name      String
+  printerId String?
+  printer   Printer?  @relation(fields: [printerId], references: [id])
+  products  Product[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Product {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name       String
+  nameAr     String?
+  sku        String?
+  barcode    String?
+  price      Float
+  cost       Float?
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  unit       String?
+  stock      Float     @default(0)
+  minStock   Float?
+  taxable    Boolean   @default(true)
+  active     Boolean   @default(true)
+  hasSerial  Boolean   @default(false)
+  isWeighed  Boolean   @default(false)
+  hasExpiry  Boolean   @default(false)
+  kitchenId  String?
+  kotPrinter Int?      // 1-4
+  image      String?
+  metadata   Json?     // industry-specific extra fields (drug schedule, part number, etc.)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  orderItems  OrderItem[]
+  kotItems    KOTItem[]
+  stockBatches StockBatch[]
+
+  @@index([tenantId])
+  @@index([tenantId, active])
+  @@index([tenantId, deletedAt])
+}
+
+// ─────────────────────────────────────────────
+// PRINTERS
+// ─────────────────────────────────────────────
+
+model Printer {
+  id         String      @id @default(cuid())
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name       String
+  ipAddress  String
+  port       Int         @default(9100)
+  type       PrinterType @default(KOT)
+  active     Boolean     @default(true)
+
+  categories Category[]
+  kitchens   Kitchen[]
+
+  @@index([tenantId])
+}
+
+enum PrinterType {
+  KOT
+  BILL
+  LABEL
+}
+
+// ─────────────────────────────────────────────
+// CUSTOMERS
+// ─────────────────────────────────────────────
+
+model Customer {
+  id             String          @id @default(cuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name           String
+  phone          String?
+  email          String?
+  address        String?
+  creditLimit    Float?
+  balance        Float           @default(0)
+  pipelineStage  PipelineStage   @default(Lead)
+  lifetimeValue  Float           @default(0)
+  registeredOn   DateTime        @default(now())
+  status         CustomerStatus  @default(active)
+
+  orders         Order[]
+  interactions   CustomerInteraction[]
+
+  deletedAt      DateTime?
+
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+}
+
+enum CustomerStatus {
+  active
+  inactive
+}
+
+enum PipelineStage {
+  Lead
+  Qualified
+  Proposal
+  Won
+  Lost
+}
+
+model CustomerInteraction {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type        String   // call | email | visit | note
+  note        String
+  createdAt   DateTime @default(now())
+  staffId     String?
+}
+
+// ─────────────────────────────────────────────
+// ORDERS
+// ─────────────────────────────────────────────
+
+model Order {
+  id               String             @id @default(cuid())
+  tenantId         String
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  no               String             // human order number
+  subtotal         Float
+  tax              Float              @default(0)
+  disc             Float              @default(0)
+  total            Float
+  paid             Float              @default(0)
+  change           Float              @default(0)
+  method           String             @default("cash")
+  status           OrderStatus        @default(open)
+
+  customerId       String?
+  customer         Customer?          @relation(fields: [customerId], references: [id])
+  staffId          String?
+  staff            Staff?             @relation(fields: [staffId], references: [id])
+
+  // Restaurant fields
+  tableId          String?
+  table            RestaurantTable?   @relation(fields: [tableId], references: [id])
+  restaurantStatus RestaurantStatus?
+  verificationPin  String?
+  pinExpiry        DateTime?
+
+  // E-invoicing fields
+  invoiceUuid      String?
+  peppolStatus     String?
+  buyerVatNumber   String?
+
+  // Industry-specific extra fields (vehicle details, patient info, etc.)
+  metadata         Json?
+
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  deletedAt        DateTime?
+
+  items            OrderItem[]
+  kots             KOT[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
+}
+
+enum OrderStatus {
+  open
+  paid
+  void
+  refund
+}
+
+enum RestaurantStatus {
+  draft
+  pending_verification
+  verified
+  in_kitchen
+  ready
+  served
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenantId  String
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  name      String
+  qty       Float
+  price     Float
+  tax       Float    @default(0)
+  disc      Float    @default(0)
+  note      String?
+  serial    String?
+
+  @@index([orderId])
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────
+// RESTAURANT: KITCHEN / TABLES / KOT
+// ─────────────────────────────────────────────
+
+model Kitchen {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name       String
+  color      String   @default("#4f8ef7")
+  printerId  String?
+  printer    Printer? @relation(fields: [printerId], references: [id])
+  active     Boolean  @default(true)
+
+  // Categories assigned to this kitchen (stored as JSON string array)
+  categories Json     @default("[]")
+
+  kots       KOT[]
+
+  @@index([tenantId])
+}
+
+model RestaurantTable {
+  id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  number         String
+  name           String?
+  seats          Int         @default(4)
+  status         TableStatus @default(available)
+  section        String?
+  currentOrderId String?
+
+  orders         Order[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId])
+}
+
+enum TableStatus {
+  available
+  occupied
+  bill_requested
+  reserved
+}
+
+model KOT {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  orderId      String
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderNo      String
+  tableId      String?
+  tableName    String?
+  kitchenId    String
+  kitchen      Kitchen   @relation(fields: [kitchenId], references: [id])
+  kitchenName  String
+  kitchenColor String
+  status       KOTStatus @default(new)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  items        KOTItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+enum KOTStatus {
+  new
+  accepted
+  preparing
+  ready
+  served
+}
+
+model KOTItem {
+  id        String   @id @default(cuid())
+  kotId     String
+  kot       KOT      @relation(fields: [kotId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  name      String
+  qty       Float
+  note      String?
+
+  @@index([kotId])
+}
+
+// ─────────────────────────────────────────────
+// SHIFTS
+// ─────────────────────────────────────────────
+
+model Shift {
+  id              String      @id @default(cuid())
+  tenantId        String
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  openedAt        DateTime    @default(now())
+  closedAt        DateTime?
+  openingBalance  Float
+  closingBalance  Float?
+  cashSales       Float       @default(0)
+  cardSales       Float       @default(0)
+  totalSales      Float       @default(0)
+  expenses        Float       @default(0)
+  status          ShiftStatus @default(open)
+
+  staffId         String?
+  staff           Staff?      @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+enum ShiftStatus {
+  open
+  closed
+}
+
+// ─────────────────────────────────────────────
+// PREDEFINED NOTES
+// ─────────────────────────────────────────────
+
+model PredefinedNote {
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  text     String
+  active   Boolean @default(true)
+
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────
+// STOCK / INVENTORY
+// ─────────────────────────────────────────────
+
+model StockBatch {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  productName String
+  batchNo     String?
+  barcode     String?
+  totalQty    Float
+  damagedQty  Float     @default(0)
+  expiryDate  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────
+// VOUCHERS (cash in/out)
+// ─────────────────────────────────────────────
+
+model Voucher {
+  id       String      @id @default(cuid())
+  tenantId String
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  type     VoucherType
+  amount   Float
+  reason   String
+  staffId  String?
+  createdAt DateTime   @default(now())
+
+  @@index([tenantId])
+}
+
+enum VoucherType {
+  in
+  out
+  refund
+}
+
+// ─────────────────────────────────────────────
+// JOBS (repairs / service)
+// ─────────────────────────────────────────────
+
+model Job {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  no         String
+  title      String
+  customerId String?
+  vehicleId  String?
+  status     JobStatus @default(open)
+  // advances stored as Json: JobAdvance[]
+  advances   Json      @default("[]")
+  estimate   Float?
+  notes      String?
+  assignee   String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([tenantId])
+}
+
+enum JobStatus {
+  open
+  in_progress
+  ready
+  closed
+  cancelled
+}
+
+// ─────────────────────────────────────────────
+// HCM — EMPLOYEES
+// ─────────────────────────────────────────────
+
+model Employee {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name       String
+  role       String   @default("cashier") // manager|cashier|waiter|kitchen|driver|other
+  phone      String?
+  email      String?
+  hourlyRate Float    @default(0)
+  active     Boolean  @default(true)
+
+  // Clock-in/out log stored as JSON: [{ type: 'in'|'out', ts: ISO }]
+  clockLog   Json     @default("[]")
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  action    String   // e.g. "UPDATE_SETTINGS", "INSTALL_TEMPLATE", "CLOSE_SHIFT"
+  entity    String?  // e.g. "Settings", "Order", "Shift"
+  entityId  String?
+  staffId   String?
+  payload   Json?    // changed fields snapshot
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// E-INVOICING (PEPPOL / UAE)
+// ─────────────────────────────────────────────
+
+model TenantInvoiceSettings {
+  id          String  @id @default(cuid())
+  tenantId    String  @unique
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  peppolId    String?  // e.g. "0088:971XXXXXXXXX"
+  aspEndpoint String?  // Access Point Service Provider URL
+  aspApiKey   String?
+  testMode    Boolean  @default(true)
+
+  updatedAt   DateTime @updatedAt
+}

@@ -2,7 +2,7 @@
 // Lightweight in-browser store backed by localStorage (demo mode).
 // In Cloud mode this will be replaced by API calls to server/cloud/.
 
-import { Settings, Product, Customer, Order, Job, Voucher, StockBatch, Table, Kitchen, KOT, Staff } from './types';
+import { Settings, Product, Customer, Order, Job, Voucher, StockBatch, Table, Kitchen, KOT, Staff, PredefinedNote, Shift, Employee, DEFAULT_FEATURE_FLAGS } from './types';
 
 export interface DB {
   settings: Settings;
@@ -16,6 +16,9 @@ export interface DB {
   kitchens: Kitchen[];
   kots: KOT[];
   staff: Staff[];
+  predefinedNotes: PredefinedNote[];
+  shifts: Shift[];
+  employees: Employee[];
   _version: number;
 }
 
@@ -48,9 +51,21 @@ export const defaultSettings: Settings = {
   taxRate: 5,
   taxLabel: 'VAT',
   roundCash: false,
+  features: { ...DEFAULT_FEATURE_FLAGS },
 };
 
-function defaultDB(): DB {
+const DEFAULT_PREDEFINED_NOTES: PredefinedNote[] = [
+  { id: 'n1', text: 'No onion', active: true },
+  { id: 'n2', text: 'No cheese', active: true },
+  { id: 'n3', text: 'No sauce', active: true },
+  { id: 'n4', text: 'Extra spicy', active: true },
+  { id: 'n5', text: 'Well done', active: true },
+  { id: 'n6', text: 'Medium', active: true },
+  { id: 'n7', text: 'No ice', active: true },
+  { id: 'n8', text: 'Extra portion', active: true },
+];
+
+export function defaultDB(): DB {
   return {
     settings: { ...defaultSettings },
     products: [],
@@ -63,6 +78,9 @@ function defaultDB(): DB {
     kitchens: [],
     kots: [],
     staff: [],
+    predefinedNotes: [...DEFAULT_PREDEFINED_NOTES],
+    shifts: [],
+    employees: [],
     _version: 1,
   };
 }

@@ -184,8 +184,19 @@ function vKitchen(){
   const card=o=>{
     const mins=(now()-o.ts)/60000, cls=o.kds.status==='ready'?'rdy':mins>=KDS_LATE?'late':mins>=KDS_WARN?'warn':'';
     const next=o.kds.status==='new'?['k-start',tr('Start')]:o.kds.status==='preparing'?['k-ready',tr('Ready')]:['k-done',tr('Served')];
-    return '<article class="kt '+cls+'"><header><b>#'+esc(o.no)+'</b><span>'+esc(o.type)+(o.table?' · '+esc(o.table):'')+'</span><time>'+Math.floor(mins)+':'+pad(Math.floor((mins%1)*60))+'</time></header><ul>'+
-      o.lines.map(l=>'<li><b>'+l.qty+'×</b> '+esc(l.name)+(l.note?'<em>'+esc(l.note)+'</em>':'')+'</li>').join('')+'</ul><button type="button" class="btn primary block" data-act="'+next[0]+'" data-id="'+o.id+'">'+next[1]+'</button></article>';
+    const kp=DB.settings.kotPrinters||0;
+    let itemsHtml;
+    if(kp>0){
+      const groups={};
+      o.lines.forEach(l=>{const k=l.kotPrinter||0;if(!groups[k])groups[k]=[];groups[k].push(l)});
+      itemsHtml=Object.keys(groups).sort((a,b)=>Number(a)-Number(b)).map(k=>{
+        const label=k!=='0'?'<li class="kt-printer muted sm">Printer '+k+'</li>':'';
+        return label+groups[k].map(l=>'<li><b>'+l.qty+'×</b> '+esc(l.name)+(l.note?'<em>'+esc(l.note)+'</em>':'')+'</li>').join('');
+      }).join('');
+    }else{
+      itemsHtml=o.lines.map(l=>'<li><b>'+l.qty+'×</b> '+esc(l.name)+(l.note?'<em>'+esc(l.note)+'</em>':'')+'</li>').join('');
+    }
+    return '<article class="kt '+cls+'"><header><b>#'+esc(o.no)+'</b><span>'+esc(o.type)+(o.table?' · '+esc(o.table):'')+'</span><time>'+Math.floor(mins)+':'+pad(Math.floor((mins%1)*60))+'</time></header><ul>'+itemsHtml+'</ul><button type="button" class="btn primary block" data-act="'+next[0]+'" data-id="'+o.id+'">'+next[1]+'</button></article>';
   };
   return '<div class="reg kds"><header class="rh"><div class="rb"><svg class="mk" viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg><strong>Harbinger Kitchen</strong><span class="muted">'+T.length+' open ticket(s)</span></div>'+
     '<div class="ra"><button type="button" class="btn ghost sm" data-act="k-mute">'+(UIS.kmute?'🔇 Sound off':'🔔 Sound on')+'</button><button type="button" class="btn ghost sm" data-act="k-recall">Recall last served</button><button type="button" class="btn ghost sm" data-act="r-exit">'+(can('dashboard')?'Console':'Sign out')+'</button></div></header>'+

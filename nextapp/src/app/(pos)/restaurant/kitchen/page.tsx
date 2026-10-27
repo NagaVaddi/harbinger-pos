@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { usePOS } from '@/lib/context';
 import { Kitchen } from '@/lib/types';
 import { uid } from '@/lib/fmt';
+import { buildKOTTicket, sendToPrintAgent, PrintAgentOfflineError } from '@/lib/printer';
 
 const COLORS = ['#4f8ef7', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#f97316', '#ec4899'];
 
@@ -15,6 +16,40 @@ function KitchenModal({ kitchen, onClose, onSave }: {
   const [color, setColor] = useState(kitchen?.color || COLORS[0]);
   const [printerIp, setPrinterIp] = useState(kitchen?.printerIp || '');
   const [printerPort, setPrinterPort] = useState(kitchen?.printerPort || 9100);
+  const [printerNo, setPrinterNo] = useState<number | ''>(kitchen?.printerNo ?? '');
+  const [printStatus, setPrintStatus] = useState<string | null>(null);
+  const [agentOffline, setAgentOffline] = useState(false);
+
+  const runTestPrint = async (ip: string, port: number) => {
+    const ticket = buildKOTTicket({
+      kotNo: 'TEST',
+      orderNo: 'T-000',
+      tableName: 'Table 1',
+      kitchenName: name || 'Kitchen',
+      items: [{ name: 'Test Item', qty: 1, note: 'Test print from Harbinger' }],
+      createdAt: new Date().toISOString(),
+    });
+    const res = await sendToPrintAgent(ip, port, ticket);
+    return res;
+  };
+
+  const handleTestPrint = async () => {
+    if (!printerIp.trim()) { setPrintStatus('Enter an IP first'); return; }
+    setPrintStatus('Sending…');
+    try {
+      const res = await runTestPrint(printerIp.trim(), printerPort);
+      setPrintStatus(res.ok ? '✓ Sent' : `✗ ${res.error}`);
+      setTimeout(() => setPrintStatus(null), 4000);
+    } catch (e) {
+      setPrintStatus(null);
+      if (e instanceof PrintAgentOfflineError) {
+        setAgentOffline(true);
+      } else {
+        setPrintStatus(`✗ ${e instanceof Error ? e.message : String(e)}`);
+        setTimeout(() => setPrintStatus(null), 4000);
+      }
+    }
+  };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -37,6 +72,16 @@ function KitchenModal({ kitchen, onClose, onSave }: {
           </div>
           <div style={{ padding: '12px 14px', background: 'var(--bg3)', borderRadius: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10 }}>Network Printer (KOT)</div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 11, color: 'var(--text2)', display: 'block', marginBottom: 3 }}>Printer Slot</label>
+              <select className="inp" value={printerNo} onChange={e => setPrinterNo(e.target.value ? +e.target.value : '')}>
+                <option value="">— None —</option>
+                <option value="1">Printer 1</option>
+                <option value="2">Printer 2</option>
+                <option value="3">Printer 3</option>
+                <option value="4">Printer 4</option>
+              </select>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text2)', display: 'block', marginBottom: 3 }}>Printer IP Address</label>
@@ -47,6 +92,69 @@ function KitchenModal({ kitchen, onClose, onSave }: {
                 <input className="inp" type="number" value={printerPort} onChange={e => setPrinterPort(+e.target.value)} style={{ width: 80 }} />
               </div>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={handleTestPrint}>
+                🖨️ Test Print
+              </button>
+              {printStatus && <span style={{ fontSize: 12, color: printStatus.startsWith('✓') ? 'var(--green)' : 'var(--red)' }}>{printStatus}</span>}
+            </div>
+            {agentOffline && (
+              <div style={{
+                position: 'fixed', inset: 0, zIndex: 200,
+                background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+                onClick={e => { if (e.target === e.currentTarget) setAgentOffline(false); }}
+              >
+                <div className="card" style={{ width: 420, padding: '28px 28px 24px' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12, textAlign: 'center' }}>🖨️</div>
+                  <h3 style={{ margin: '0 0 10px', textAlign: 'center', fontSize: 17 }}>Print Agent Required</h3>
+                  <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 20, textAlign: 'center' }}>
+                    Because your POS is running securely over HTTPS, the browser blocks
+                    direct connections to LAN printers. Please download and run the
+                    <strong> Harbinger Print Agent</strong> on this computer, then retry.
+                  </p>
+                  <ol style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.8, paddingLeft: 18, marginBottom: 20 }}>
+                    <li>Download the file below and save it anywhere.</li>
+                    <li>Open a terminal and run: <code style={{ background: 'var(--bg3)', padding: '1px 5px', borderRadius: 4 }}>node harbinger-print-agent.js</code></li>
+                    <li>Keep that terminal open, then click <strong>Retry</strong>.</li>
+                  </ol>
+                  <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
+                    <a
+                      href="/downloads/harbinger-print-agent.js"
+                      download="harbinger-print-agent.js"
+                      className="btn btn-primary"
+                      style={{ justifyContent: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      ⬇ Download Print Agent
+                    </a>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ justifyContent: 'center' }}
+                      onClick={async () => {
+                        setAgentOffline(false);
+                        setPrintStatus('Retrying…');
+                        try {
+                          const res = await runTestPrint(printerIp.trim(), printerPort);
+                          setPrintStatus(res.ok ? '✓ Sent' : `✗ ${res.error}`);
+                        } catch (e) {
+                          if (e instanceof PrintAgentOfflineError) {
+                            setAgentOffline(true);
+                          } else {
+                            setPrintStatus(`✗ ${e instanceof Error ? e.message : String(e)}`);
+                          }
+                        }
+                        setTimeout(() => setPrintStatus(null), 4000);
+                      }}
+                    >
+                      ↺ Retry Connection
+                    </button>
+                    <button className="btn btn-ghost" style={{ justifyContent: 'center', fontSize: 12 }} onClick={() => setAgentOffline(false)}>
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
@@ -58,6 +166,7 @@ function KitchenModal({ kitchen, onClose, onSave }: {
                   categories: kitchen?.categories || [],
                   printerIp: printerIp.trim() || undefined,
                   printerPort,
+                  printerNo: printerNo || undefined,
                   active: kitchen?.active ?? true,
                 });
               }}>Save</button>

@@ -84,7 +84,18 @@ A['r-inc']=d=>{const l=byId2(d.id);if(!l)return;const it=itemById(l.itemId);if(s
 A['r-dec']=d=>{const l=byId2(d.id);if(!l)return;l.qty--;if(l.qty<=0)R.cart=R.cart.filter(x=>x!==l);render()};
 A['r-del']=d=>{R.cart=R.cart.filter(x=>x.key!==d.id);render()};
 const byId2=k=>R.cart.find(x=>x.key===k);
-A['r-note']=d=>{const l=byId2(d.id);modal({title:'Item note',body:field('Note (e.g. no onion)','note',l.note,{af:1,max:100})+notePresetsHtml(),onOpen:bindNotePresets,enter:el=>$('.btn.primary',el).click(),actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{l.note=formData(el).note.trim();render()}}]})};
+const DEFAULT_NOTE_PRESETS=['No onion','No cheese','No sauce','Extra spicy','Well done','Medium','No ice','Extra portion','On the side','No salt','No sugar','Extra sauce'];
+function notePresetsHtml(){
+  const presets=DB.settings.notePresets&&DB.settings.notePresets.length?DB.settings.notePresets:DEFAULT_NOTE_PRESETS;
+  return '<div style="margin-top:10px"><p class="muted sm" style="margin:0 0 6px">Quick modifiers:</p><div style="display:flex;flex-wrap:wrap;gap:6px">'+presets.map(p=>'<button type="button" class="btn ghost sm note-pr" data-p="'+esc(p)+'">'+esc(p)+'</button>').join('')+'</div></div>';
+}
+function bindNotePresets(el){
+  el.querySelectorAll('.note-pr').forEach(b=>b.addEventListener('click',()=>{
+    const inp=el.querySelector('[name="note"]');if(!inp)return;
+    const cur=inp.value.trim();inp.value=cur?cur+', '+b.dataset.p:b.dataset.p;inp.focus();
+  }));
+}
+A['r-note']=d=>{const l=byId2(d.id);modal({title:'Item note',body:field('Note','note',l.note,{af:1,max:100})+notePresetsHtml(),onOpen:bindNotePresets,enter:el=>$('.btn.primary',el).click(),actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{l.note=formData(el).note.trim();render()}}]})};
 A['r-cat']=d=>{R.cat=d.id;render()};
 A['r-type']=d=>{R.type=d.id;if(d.id!=='dine-in')R.table='';render()};
 I.rq=el=>{R.q=el.value;render()};
@@ -211,7 +222,8 @@ function finalizeOrder(S,sess,payments,change,extra){
   const no=ct.code+"-"+String(DB.seq.order).padStart(5,"0");
   const lines=T.lines.map(l=>{
     const allocs=l.it.track?deductStock(l.it.id,l.qty,"Sale "+no):[];
-    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',serial:l.serial||null,allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0};
+    const cat=byId(DB.categories,l.it.categoryId);
+    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',serial:l.serial||null,allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0,kotPrinter:(cat&&cat.kotPrinter)||null};
   });
   const cu=byId(DB.customers,S.customerId), earned=cu?Math.floor(T.total*DB.settings.pointsPerAed):0;
   const usedCode=T.discounts.some(d=>d.kind==="code")?S.code:null;
@@ -228,6 +240,39 @@ function completeSale(payments,change){
   regReset();render();
   showReceipt(order,[{label:"New order",cls:"primary"}]);
 }
+
+/* ---------- business hours auto-close ---------- */
+let _bhAlerted=false,_bhAlertDay=-1;
+function checkBusinessHours(){
+  if(!curSession())return;
+  const bh=DB.settings.businessHours;if(!bh||!bh.length)return;
+  const d=new Date(),jsDay=d.getDay(); // 0=Sun,1=Mon,...6=Sat
+  const dayIdx=[6,0,1,2,3,4,5][jsDay]; // map to our array Mon=0...Sun=6
+  const todayBH=bh[dayIdx];if(!todayBH||!todayBH.enabled)return;
+  const hm=d.getHours()*60+d.getMinutes();
+  const [ch,cm]=(todayBH.close||'22:00').split(':').map(Number);
+  const closeMin=ch*60+cm;
+  if(hm>=closeMin){
+    if(!_bhAlerted||_bhAlertDay!==dayIdx){_bhAlerted=true;_bhAlertDay=dayIdx;showBHClose();}
+  }else{_bhAlerted=false;}
+}
+function showBHClose(){
+  const s=curSession();if(!s)return;
+  const st=sessionStats(s);
+  const rows=Object.keys(st.tender).map(k=>'<tr><td>'+esc(k.charAt(0).toUpperCase()+k.slice(1))+' sales</td><td style="text-align:right">'+money(st.tender[k])+'</td></tr>').join('');
+  modal({title:'Business hours ended',body:
+    '<p class="warn-t">Your closing time has been reached. Please close the register.</p>'+
+    '<table style="width:100%;margin-top:12px;border-collapse:collapse">'+
+    '<tr><td>Opening float</td><td style="text-align:right"><b>'+money(s.float)+'</b></td></tr>'+
+    rows+
+    '<tr><td>Cash in</td><td style="text-align:right">'+money(st.vin)+'</td></tr>'+
+    '<tr><td>Cash out / expenses</td><td style="text-align:right">−'+money(st.vout)+'</td></tr>'+
+    '<tr style="border-top:2px solid var(--border)"><td><b>Total sales</b></td><td style="text-align:right"><b>'+money(st.net)+'</b></td></tr>'+
+    '<tr><td><b>Expected in drawer</b></td><td style="text-align:right"><b>'+money(st.expected)+'</b></td></tr>'+
+    '</table>',
+    actions:[{label:'Close later'},{label:'Close register now',cls:'danger',fn:()=>{setTimeout(()=>A['r-close'](),100)}}]});
+}
+setInterval(checkBusinessHours,60000);
 
 /* ---------- orders today, vouchers, close ---------- */
 A['r-orders']=()=>{

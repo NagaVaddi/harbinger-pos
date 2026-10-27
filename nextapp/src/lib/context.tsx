@@ -1,6 +1,6 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { DB, loadDB, saveDB, loadSession, saveSession } from './store';
+import { DB, defaultDB, loadDB, saveDB, loadSession, saveSession } from './store';
 import { Settings, Session } from './types';
 
 interface POSContext {
@@ -13,8 +13,19 @@ interface POSContext {
 
 const Ctx = createContext<POSContext | null>(null);
 
-export function POSProvider({ children }: { children: React.ReactNode }) {
-  const [db, setDB] = useState<DB>(() => loadDB());
+export function POSProvider({
+  children,
+  initialData,
+}: {
+  children: React.ReactNode;
+  initialData?: Partial<DB>;
+}) {
+  const [db, setDB] = useState<DB>(() => {
+    const local = loadDB();
+    if (!initialData) return local;
+    // Merge server data over localStorage defaults (server is authoritative)
+    return { ...defaultDB(), ...local, ...initialData } as DB;
+  });
   const [session, setSessionState] = useState<Session | null>(() => loadSession());
 
   const save = useCallback((updater: (db: DB) => DB | void) => {

@@ -1,9 +1,75 @@
 // Core types shared across the app
 
+// ──────────────────────────────────────────────────────────────
+// Feature entitlement system
+// ──────────────────────────────────────────────────────────────
+export enum FeatureKey {
+  RESTAURANT_MODULE    = 'restaurant_module',
+  KOT_PRINTING         = 'kot_printing',
+  AI_IMAGE_GEN         = 'ai_image_gen',
+  AI_DEMAND_FORECAST   = 'ai_demand_forecasting',
+  BARCODE_GENERATION   = 'barcode_generation',
+  E_INVOICING          = 'e_invoicing',
+  SHIFT_MANAGEMENT     = 'shift_management',
+  CRM_MODULE           = 'crm_module',
+  HCM_MODULE           = 'hcm_module',
+  CUSTOM_REPORTS       = 'custom_reports',
+  JOBS_MODULE          = 'jobs_module',
+}
+
+export type FeatureFlags = {
+  [K in FeatureKey]: boolean;
+};
+
+export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
+  [FeatureKey.RESTAURANT_MODULE]:  false,
+  [FeatureKey.KOT_PRINTING]:       false,
+  [FeatureKey.AI_IMAGE_GEN]:       true,
+  [FeatureKey.AI_DEMAND_FORECAST]: false,
+  [FeatureKey.BARCODE_GENERATION]: true,
+  [FeatureKey.E_INVOICING]:        false,
+  [FeatureKey.SHIFT_MANAGEMENT]:   false,
+  [FeatureKey.CRM_MODULE]:         false,
+  [FeatureKey.HCM_MODULE]:         false,
+  [FeatureKey.CUSTOM_REPORTS]:     false,
+  [FeatureKey.JOBS_MODULE]:        false,
+};
+
 export type BizType =
-  | 'restaurant' | 'supermarket' | 'retail' | 'pharmacy'
-  | 'clinic' | 'salon' | 'tailor' | 'butcher' | 'grocery'
-  | 'garage' | 'tyre';
+  | 'restaurant' | 'supermarket' | 'grocery' | 'retail'
+  | 'pharmacy'   | 'clinic'
+  | 'salon'      | 'tailor'  | 'laundry'
+  | 'butcher'
+  | 'garage'     | 'tyre'
+  | 'wholesale'  | 'logistics' | 'ecommerce';
+
+export interface BusinessHoursDay {
+  day: string;
+  enabled: boolean;
+  open: string;   // "HH:MM"
+  close: string;  // "HH:MM"
+}
+
+export interface PredefinedNote {
+  id: string;
+  text: string;
+  active: boolean;
+}
+
+export interface Shift {
+  id: string;
+  openedAt: string;
+  closedAt?: string;
+  openingBalance: number;
+  closingBalance?: number;
+  cashSales: number;
+  cardSales: number;
+  totalSales: number;
+  expenses: number;
+  status: 'open' | 'closed';
+  staffId?: string;
+  staffName?: string;
+}
 
 export interface Settings {
   business: string;
@@ -15,6 +81,9 @@ export interface Settings {
   taxRate: number;
   taxLabel: string;
   roundCash: boolean;
+  features: FeatureFlags;
+  businessHours?: BusinessHoursDay[];
+  autoCloseShift?: boolean;
 }
 
 export interface Product {
@@ -35,6 +104,9 @@ export interface Product {
   isWeighed?: boolean;
   hasExpiry?: boolean;
   kitchenId?: string;
+  kotPrinter?: 1 | 2 | 3 | 4;
+  image?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Staff {
@@ -55,6 +127,16 @@ export interface Session {
   kitchenName?: string;
 }
 
+export type PipelineStage = 'Lead' | 'Qualified' | 'Proposal' | 'Won' | 'Lost';
+
+export interface CustomerInteraction {
+  id: string;
+  type: 'call' | 'email' | 'visit' | 'note';
+  note: string;
+  staffId?: string;
+  createdAt: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -65,6 +147,28 @@ export interface Customer {
   balance?: number;
   registeredOn: string;
   status: 'active' | 'inactive';
+  // CRM fields (gated by crm_module)
+  pipelineStage?: PipelineStage;
+  lifetimeValue?: number;
+  interactions?: CustomerInteraction[];
+}
+
+export type EmployeeRole = 'manager' | 'cashier' | 'waiter' | 'kitchen' | 'driver' | 'other';
+
+export interface ClockEntry {
+  type: 'in' | 'out';
+  ts: string;
+}
+
+export interface Employee {
+  id: string;
+  name: string;
+  role: EmployeeRole;
+  phone?: string;
+  email?: string;
+  hourlyRate: number;
+  active: boolean;
+  clockLog?: ClockEntry[];
 }
 
 export interface OrderLine {
@@ -100,6 +204,8 @@ export interface Order {
   restaurantStatus?: 'draft' | 'pending_verification' | 'verified' | 'in_kitchen' | 'ready' | 'served';
   verificationPin?: string;
   pinExpiry?: number;
+  // Industry-specific order fields (vehicle details, patient info, delivery address, etc.)
+  metadata?: Record<string, unknown>;
 }
 
 export interface Table {
@@ -119,6 +225,7 @@ export interface Kitchen {
   categories: string[];
   printerIp?: string;
   printerPort?: number;
+  printerNo?: number;
   active: boolean;
 }
 

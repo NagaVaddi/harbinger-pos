@@ -30,6 +30,7 @@ function vCatalog(tab){
   if(tab==='categories'){
     const rows=DB.categories;
     body='<div class="bar">'+btn('+ Add category','cat-edit')+'</div>'+tbl([{h:'Category',r:r=>esc(r.name)},{h:'Arabic name',r:r=>esc(r.nameAr||'—')},{h:'Items',cls:'r',r:r=>DB.items.filter(i=>i.categoryId===r.id).length},
+      ...(bm('kitchen')?[{h:'KOT Printer',r:r=>r.kotPrinter?'Printer '+r.kotPrinter:'<span class="muted">—</span>'}]:[]),
       {h:'',cls:'r',r:r=>btn('Edit','cat-edit',r.id)+' '+btn('Delete','cat-del',r.id,'danger')}],rows,'No categories.');
   }else{
     const cf=UIS.q.catf||'all';
@@ -98,10 +99,19 @@ A['item-import']=()=>{
 };
 A['cat-edit']=d=>{
   const c=d.id?byId(DB.categories,d.id):null;
-  modal({title:c?'Edit category':'New category',body:field('Name','name',c&&c.name,{req:1,af:1})+field('Arabic name','nameAr',c&&c.nameAr),
+  const kp=DB.settings.kotPrinters||4;
+  const printerSel=bm('kitchen')?'<span></span>'+select('KOT Printer','kotPrinter',[['','— None —']].concat(Array.from({length:kp},(_,i)=>[(i+1).toString(),'Printer '+(i+1)])),c&&c.kotPrinter?String(c.kotPrinter):''):'';
+  modal({title:c?'Edit category':'New category',body:'<div class="form2">'+field('Name','name',c&&c.name,{req:1,af:1})+field('Arabic name','nameAr',c&&c.nameAr)+printerSel+'</div>',
     enter:el=>$('.btn.primary',el).click(),
     actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{const f=formData(el),n=f.name.trim();if(!n){toast('Name required','err');return false}
-      if(c){c.name=n;c.nameAr=f.nameAr.trim()}else DB.categories.push({id:uid('c'),name:n,nameAr:f.nameAr.trim()});save();render()}}]});
+      const kotP=bm('kitchen')&&f.kotPrinter?parseInt(f.kotPrinter,10):undefined;
+      if(c){c.name=n;c.nameAr=f.nameAr.trim();if(bm('kitchen'))c.kotPrinter=kotP}else DB.categories.push({id:uid('c'),name:n,nameAr:f.nameAr.trim(),kotPrinter:kotP});save();render()}}]});
+};
+A['cat-kot-save']=()=>{
+  const sec=document.getElementById('catKotSection'); if(!sec)return;
+  const f=formData(sec);
+  DB.categories.forEach(c=>{const v=f['ckp_'+c.id];c.kotPrinter=v?parseInt(v,10):undefined});
+  save();toast('KOT printer mapping saved');
 };
 A['cat-del']=d=>{
   if(DB.items.some(i=>i.categoryId===d.id)){toast('Move or archive the items in this category first','err');return}
@@ -443,6 +453,8 @@ A['rep-export']=()=>{if(window._csv)downloadCSV(window._csvName,window._csv)};
 
 /* ================= Settings ================= */
 function vSettings(){
+  if(!can('settings'))return head('Control Panel','Access restricted')+
+    '<section class="card narrow"><p class="warn-t">Only administrators can access the Control Panel.</p><p class="muted">Ask your admin to update settings for you.</p></section>';
   const s=DB.settings;
   return head('Control Panel','Business profile, tax, loyalty and data')+
   '<form id="setForm" class="card narrow" autocomplete="off"><h2>Business</h2><div class="form2">'+field('Business name','business',s.business)+field('Tax registration no. (TRN)','trn',s.trn)+field('Address','address',s.address)+field('Phone','phone',s.phone)+
@@ -457,8 +469,26 @@ function vSettings(){
   '<h2>Receipts</h2><div class="form2">'+select('Receipt language','receiptLang',[['en','English'],['ar','العربية'],['both','English + Arabic']],s.receiptLang||'en')+'<span></span></div>'+
   '<h2>Loyalty</h2><div class="form2">'+field('Points earned per currency unit','pointsPerAed',s.pointsPerAed,{type:'number',step:'0.01',min:0})+field('Currency value of 1 point','pointValue',s.pointValue,{type:'number',step:'0.01',min:0})+'</div>'+
   '<h2>Discount caps (max % without manager approval)</h2><div class="form2">'+field('Admin %','capA',s.caps.admin,{type:'number',min:0})+field('Manager %','capM',s.caps.manager,{type:'number',min:0})+field('Cashier %','capC',s.caps.cashier,{type:'number',min:0})+'</div>'+
+  (bm('kitchen')?'<h2>Kitchen & KOT</h2><div class="form2">'+field('Number of KOT printers (0 = off)','kotPrinters',s.kotPrinters||0,{type:'number',min:0,max:8})+'<span></span></div>':'')+
   '<h2>Appearance & behaviour</h2><div class="form2">'+select('Brand theme','theme',[['A','Theme A — blue & cyan (default)'],['B','Theme B — navy & red']],s.theme)+select('Display size','density',[['compact','Compact (more on screen)'],['comfortable','Comfortable (larger)']],s.density||'compact')+select('Mode','mode',[['auto','Match device'],['light','Light'],['dark','Dark']],s.mode)+'</div>'+
-  check('Allow invoicing when stock is zero or short','allowNegative',s.allowNegative)+'<div class="bar mt"><button class="btn primary" type="submit">Save settings</button></div></form>'+
+  check('Allow invoicing when stock is zero or short','allowNegative',s.allowNegative)+
+  '<h2>Business Hours</h2><p class="muted sm">Register shows an auto-close popup when the closing time is reached.</p>'+
+  (()=>{const bh=s.businessHours||[];const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    return '<div style="display:grid;gap:8px">'+DAYS.map((day,i)=>{const d=bh[i]||{day:day,enabled:true,open:'08:00',close:'22:00'};
+      return '<div style="display:flex;align-items:center;gap:12px"><label style="display:flex;align-items:center;gap:6px;width:120px"><input type="checkbox" name="bh_on_'+i+'" value="1"'+(d.enabled?' checked':'')+'> '+esc(day)+'</label>'+
+        '<label style="font-size:.85em;color:var(--muted)">Open <input type="time" name="bh_open_'+i+'" value="'+esc(d.open||'08:00')+'" style="width:6em"></label>'+
+        '<label style="font-size:.85em;color:var(--muted)">Close <input type="time" name="bh_close_'+i+'" value="'+esc(d.close||'22:00')+'" style="width:6em"></label></div>';
+    }).join('')+'</div>';
+  })()+
+  '<h2 style="margin-top:20px">Item note presets</h2><p class="muted sm">Quick modifier buttons shown when adding a note to an order line. One per line (blank = use defaults).</p>'+
+  '<textarea name="notePresets" rows="4" style="width:100%;box-sizing:border-box;padding:8px;font-size:.9em;font-family:inherit;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">'+esc((s.notePresets||[]).join('\n'))+'</textarea>'+
+  '<div class="bar mt"><button class="btn primary" type="submit">Save settings</button></div></form>'+
+  (bm('kitchen')?(()=>{
+    const kp=DB.settings.kotPrinters||4;
+    const opts=[['','— None —']].concat(Array.from({length:kp},(_,i)=>[(i+1).toString(),'Printer '+(i+1)]));
+    const rows=DB.categories.length?DB.categories.map(c=>'<tr><td style="padding:8px 10px;vertical-align:middle"><b>'+esc(c.name)+'</b>'+(c.nameAr?'<br><span class="muted sm">'+esc(c.nameAr)+'</span>':'')+'</td><td style="padding:6px 10px">'+select('','ckp_'+c.id,opts,c.kotPrinter?String(c.kotPrinter):'')+'</td></tr>').join(''):'<tr><td colspan="2" style="padding:10px;color:var(--muted)">No categories yet. Add categories first.</td></tr>';
+    return '<section class="card narrow mt" id="catKotSection"><h2>Category KOT Printer</h2><p class="muted sm">Route each category to its KOT printer. Printer count set in Kitchen &amp; KOT above.</p><table style="width:100%"><thead><tr><th style="text-align:left;padding:4px 10px;color:var(--muted)">Category</th><th style="text-align:left;padding:4px 10px;color:var(--muted)">KOT Printer</th></tr></thead><tbody>'+rows+'</tbody></table><div class="bar mt">'+btn('Save KOT mapping','cat-kot-save')+'</div></section>';
+  })():'')+
   '<section class="card narrow mt"><h2>Data</h2><p class="muted sm">This demo stores data in this browser only. Back up regularly.</p><div class="bar">'+btn('Download backup (JSON)','backup')+btn('Restore from backup','restore')+btn('Load sample sales','demo-data')+btn('Reset to demo data','reset','', 'danger')+'</div></section>'+
   '<section class="card narrow mt"><h2>Audit log</h2>'+tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'User',r:r=>esc(userName(r.user))},{h:'Action',r:r=>esc(r.action)},{h:'Detail',r:r=>esc(r.detail)}],DB.audit.slice(0,40),'No activity yet.')+'</section>';
 }
@@ -468,9 +498,13 @@ function bindSettings(){
     e.preventDefault(); const d=formData(f), s=DB.settings;
     const vat=num(d.vatPct); if(vat<0||vat>100){toast('VAT must be 0–100','err');return}
     const caps=[num(d.capA),num(d.capM),num(d.capC)]; if(caps.some(c=>c<0||c>100)){toast('Caps must be 0–100','err');return}
+    const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    const businessHours=DAYS.map((day,i)=>({day:day,enabled:!!d['bh_on_'+i],open:d['bh_open_'+i]||'08:00',close:d['bh_close_'+i]||'22:00'}));
+    const npRaw=(d.notePresets||'').split('\n').map(x=>x.trim()).filter(Boolean);
+    const notePresets=npRaw.length?npRaw:null;
     Object.assign(s,{business:d.business.trim()||'My Business',trn:d.trn.trim(),address:d.address.trim(),phone:d.phone.trim(),currency:(d.currency.trim()||'AED').toUpperCase(),footer:d.footer.trim(),
       vatPct:vat,taxInclusive:d.taxInclusive==='1',country:d.country,taxLabel:(d.taxLabel||'').trim(),decimals:d.decimals===''?null:Math.min(3,Math.max(0,Math.round(num(d.decimals)))),receiptLang:d.receiptLang,
-      charges:[0,1,2].map(i=>({id:'ch'+i,name:(d['ch'+i+'_name']||'').trim()||('Charge '+(i+1)),pct:Math.min(100,Math.max(0,num(d['ch'+i+'_pct']))),taxable:!!d['ch'+i+'_tax'],types:d['ch'+i+'_dine']?['dine-in']:[],payable:!!d['ch'+i+'_gov']})).filter(c=>c.pct>0),pointsPerAed:Math.max(0,num(d.pointsPerAed)),pointValue:Math.max(0.01,num(d.pointValue)),caps:{admin:caps[0],manager:caps[1],cashier:caps[2]},theme:d.theme,mode:d.mode,density:d.density||'compact',allowNegative:!!d.allowNegative,countryCode:(d.countryCode||'971').replace(/\D/g,'')||'971',minMarginPct:Math.min(100,Math.max(0,num(d.minMarginPct)))});
+      charges:[0,1,2].map(i=>({id:'ch'+i,name:(d['ch'+i+'_name']||'').trim()||('Charge '+(i+1)),pct:Math.min(100,Math.max(0,num(d['ch'+i+'_pct']))),taxable:!!d['ch'+i+'_tax'],types:d['ch'+i+'_dine']?['dine-in']:[],payable:!!d['ch'+i+'_gov']})).filter(c=>c.pct>0),pointsPerAed:Math.max(0,num(d.pointsPerAed)),pointValue:Math.max(0.01,num(d.pointValue)),caps:{admin:caps[0],manager:caps[1],cashier:caps[2]},theme:d.theme,mode:d.mode,density:d.density||'compact',allowNegative:!!d.allowNegative,countryCode:(d.countryCode||'971').replace(/\D/g,'')||'971',minMarginPct:Math.min(100,Math.max(0,num(d.minMarginPct))),kotPrinters:Math.min(8,Math.max(0,Math.round(num(d.kotPrinters||0)))),businessHours:businessHours,notePresets:notePresets});
     audit('settings.save','');save();applyTheme();toast('Settings saved');render();
   });
 }

@@ -1,12 +1,125 @@
 'use client';
 import { useState, useRef } from 'react';
 import { usePOS } from '@/lib/context';
-import { OrderLine, Order, Product } from '@/lib/types';
+import { OrderLine, Order, Product, BizType } from '@/lib/types';
 import { fmtCurrency, r2, uid, now } from '@/lib/fmt';
 
 interface CartLine extends OrderLine { key: string }
 
 const METHODS = ['Cash', 'Card', 'Wallet / QR', 'Bank transfer', 'Credit'];
+
+// ── Dynamic order fields per industry ──────────────────────────
+type OrderMeta = Record<string, string>;
+
+function DynamicOrderFields({
+  bizType,
+  meta,
+  setMeta,
+  employees,
+}: {
+  bizType: BizType;
+  meta: OrderMeta;
+  setMeta: React.Dispatch<React.SetStateAction<OrderMeta>>;
+  employees: { id: string; name: string; active: boolean }[];
+}) {
+  const str = (key: string) => meta[key] ?? '';
+  const set = (key: string, v: string) => setMeta(m => ({ ...m, [key]: v }));
+
+  const fieldStyle = {
+    fontSize: 12, color: 'var(--text2)', display: 'block', marginBottom: 4,
+  } as React.CSSProperties;
+
+  if (bizType === 'garage' || bizType === 'tyre') {
+    return (
+      <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg3)', border: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginBottom: 8 }}>🔧 Vehicle info</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label style={fieldStyle}>License Plate</label>
+            <input className="inp" value={str('licensePlate')} onChange={e => set('licensePlate', e.target.value)} placeholder="e.g. ABC 1234" />
+          </div>
+          <div>
+            <label style={fieldStyle}>VIN</label>
+            <input className="inp" value={str('vin')} onChange={e => set('vin', e.target.value)} placeholder="Vehicle ID Number" />
+          </div>
+          <div>
+            <label style={fieldStyle}>Mileage (km)</label>
+            <input className="inp" type="number" min={0} value={str('mileage')} onChange={e => set('mileage', e.target.value)} />
+          </div>
+          <div>
+            <label style={fieldStyle}>Make / Model</label>
+            <input className="inp" value={str('makeModel')} onChange={e => set('makeModel', e.target.value)} placeholder="e.g. Toyota Camry" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (bizType === 'clinic') {
+    return (
+      <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg3)', border: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginBottom: 8 }}>🏥 Patient info</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={fieldStyle}>Patient Name</label>
+            <input className="inp" value={str('patientName')} onChange={e => set('patientName', e.target.value)} />
+          </div>
+          <div>
+            <label style={fieldStyle}>Doctor</label>
+            <input className="inp" value={str('doctor')} onChange={e => set('doctor', e.target.value)} />
+          </div>
+          <div>
+            <label style={fieldStyle}>Insurance Provider</label>
+            <input className="inp" value={str('insuranceProvider')} onChange={e => set('insuranceProvider', e.target.value)} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (bizType === 'salon') {
+    const activeStylists = employees.filter(e => e.active);
+    return (
+      <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg3)', border: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginBottom: 8 }}>💇 Stylist</div>
+        <div>
+          <label style={fieldStyle}>Assigned Stylist</label>
+          <select className="inp" value={str('stylistId')} onChange={e => {
+            const emp = activeStylists.find(x => x.id === e.target.value);
+            setMeta(m => ({ ...m, stylistId: e.target.value, stylistName: emp?.name ?? '' }));
+          }}>
+            <option value="">— Walk-in / Any —</option>
+            {activeStylists.map(e => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    );
+  }
+
+  if (bizType === 'ecommerce' || bizType === 'logistics') {
+    return (
+      <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg3)', border: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginBottom: 8 }}>
+          {bizType === 'logistics' ? '🚚' : '📦'} Delivery info
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label style={fieldStyle}>Delivery Address</label>
+            <input className="inp" value={str('deliveryAddress')} onChange={e => set('deliveryAddress', e.target.value)} placeholder="Street, City, Postcode" />
+          </div>
+          <div>
+            <label style={fieldStyle}>Driver Notes</label>
+            <input className="inp" value={str('driverNotes')} onChange={e => set('driverNotes', e.target.value)} placeholder="e.g. Leave at door, call on arrival" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
 
 export default function RegisterPage() {
   const { db, save, settings } = usePOS();
@@ -16,6 +129,7 @@ export default function RegisterPage() {
   const [customerId, setCustomerId] = useState('');
   const [discount, setDiscount] = useState(0);
   const [paid, setPaid] = useState('');
+  const [orderMeta, setOrderMeta] = useState<OrderMeta>({});
   const searchRef = useRef<HTMLInputElement>(null);
 
   const taxRate = settings.taxRate / 100;
@@ -70,6 +184,7 @@ export default function RegisterPage() {
       customerId: customerId || undefined,
       ts: now(),
       status: 'paid',
+      metadata: Object.keys(orderMeta).some(k => orderMeta[k]) ? orderMeta : undefined,
     };
 
     save(d => {
@@ -88,6 +203,7 @@ export default function RegisterPage() {
     setPaid('');
     setDiscount(0);
     setCustomerId('');
+    setOrderMeta({});
     alert(`✓ Order ${order.no} — Change: ${settings.currency} ${change.toFixed(2)}`);
   };
 
@@ -177,6 +293,14 @@ export default function RegisterPage() {
             ))}
           </select>
         </div>
+
+        {/* Dynamic industry fields */}
+        <DynamicOrderFields
+          bizType={settings.bizType}
+          meta={orderMeta}
+          setMeta={setOrderMeta}
+          employees={db.employees ?? []}
+        />
 
         {/* Totals */}
         <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: 14 }}>

@@ -2,6 +2,8 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { usePOS } from '@/lib/context';
+import { useFeature } from '@/components/providers/FeatureProvider';
+import { FeatureKey } from '@/lib/types';
 
 const BASE_NAV = [
   { group: 'Main', items: [
@@ -25,20 +27,36 @@ const RESTAURANT_NAV = { group: 'Restaurant', items: [
 ]};
 
 const SETUP_NAV = { group: 'Setup', items: [
-  { label: 'Settings',    href: '/settings',   icon: '⚙️' },
+  { label: 'Settings',       href: '/settings',           icon: '⚙️' },
+  { label: 'Business Hours', href: '/settings/business',  icon: '🕐' },
+  { label: 'Shifts',         href: '/settings/shifts',    icon: '💼' },
+  { label: 'Note Presets',   href: '/settings/notes',     icon: '📝' },
+  { label: 'Features',       href: '/settings/features',  icon: '🧩' },
 ]};
+
+const HCM_NAV_ITEM = { label: 'Team (HCM)', href: '/hcm', icon: '👤' };
+const EINVOICING_NAV_ITEM = { label: 'E-Invoicing', href: '/einvoicing', icon: '🧾' };
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { db, settings, session, setSession } = usePOS();
+  const { isEnabled } = useFeature();
 
-  const isRestaurant = settings.bizType === 'restaurant';
+  const showRestaurant = settings.bizType === 'restaurant' || isEnabled(FeatureKey.RESTAURANT_MODULE);
+  const showHCM = isEnabled(FeatureKey.HCM_MODULE);
+  const showEInvoicing = isEnabled(FeatureKey.E_INVOICING);
   const readyKOTs = db.kots.filter(k => k.status === 'ready').length;
 
+  // Inject feature-gated items into Operations group
+  const opsItems = BASE_NAV[1].items.filter(Boolean);
+  if (showHCM) opsItems.push(HCM_NAV_ITEM);
+  if (showEInvoicing) opsItems.push(EINVOICING_NAV_ITEM);
+
   const nav = [
-    ...BASE_NAV,
-    ...(isRestaurant ? [RESTAURANT_NAV] : []),
+    BASE_NAV[0],
+    { ...BASE_NAV[1], items: opsItems },
+    ...(showRestaurant ? [RESTAURANT_NAV] : []),
     SETUP_NAV,
   ];
 
