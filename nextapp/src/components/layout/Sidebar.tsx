@@ -38,11 +38,27 @@ const SETUP_NAV = { group: 'Setup', items: [
 const HCM_NAV_ITEM = { label: 'Team (HCM)', href: '/hcm', icon: '👤' };
 const EINVOICING_NAV_ITEM = { label: 'E-Invoicing', href: '/einvoicing', icon: '🧾' };
 
+// Which hrefs each role can access (admin gets everything)
+const ROLE_ALLOWED: Record<string, string[]> = {
+  manager:  ['/dashboard', '/register', '/products', '/customers', '/jobs', '/stock', '/reports', '/delivery', '/restaurant', '/restaurant/kds', '/hcm', '/einvoicing'],
+  waiter:   ['/register', '/customers', '/restaurant', '/restaurant/kds'],
+  kitchen:  ['/restaurant/kds'],
+  cashier:  ['/dashboard', '/register', '/customers'],
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { db, settings, session, setSession } = usePOS();
   const { isEnabled } = useFeature();
+
+  const role = session?.role ?? null;
+  const isAdmin = role === 'admin';
+
+  const canSee = (href: string) => {
+    if (isAdmin || !role) return true;
+    return (ROLE_ALLOWED[role] ?? []).some(allowed => href === allowed || href.startsWith(allowed + '/'));
+  };
 
   const showRestaurant = settings.bizType === 'restaurant' || isEnabled(FeatureKey.RESTAURANT_MODULE);
   const showHCM = isEnabled(FeatureKey.HCM_MODULE);
@@ -54,12 +70,17 @@ export default function Sidebar() {
   if (showHCM) opsItems.push(HCM_NAV_ITEM);
   if (showEInvoicing) opsItems.push(EINVOICING_NAV_ITEM);
 
-  const nav = [
+  const allGroups = [
     BASE_NAV[0],
     { ...BASE_NAV[1], items: opsItems },
     ...(showRestaurant ? [RESTAURANT_NAV] : []),
-    SETUP_NAV,
+    ...(isAdmin ? [SETUP_NAV] : []),
   ];
+
+  // Filter items by role
+  const nav = allGroups
+    .map(g => ({ ...g, items: g.items.filter(i => canSee(i.href)) }))
+    .filter(g => g.items.length > 0);
 
   return (
     <aside style={{
