@@ -28,6 +28,7 @@ const RESTAURANT_NAV = { group: 'Restaurant', items: [
 
 const SETUP_NAV = { group: 'Setup', items: [
   { label: 'Settings',       href: '/settings',           icon: '⚙️' },
+  { label: 'Staff',          href: '/settings/staff',     icon: '👤' },
   { label: 'Business Hours', href: '/settings/business',  icon: '🕐' },
   { label: 'Shifts',         href: '/settings/shifts',    icon: '💼' },
   { label: 'Note Presets',   href: '/settings/notes',     icon: '📝' },

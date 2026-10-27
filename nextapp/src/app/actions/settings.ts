@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { getAuthContext, getTenantFeatureFlags } from '@/lib/auth';
+import bcrypt from 'bcryptjs';
 
 export async function getSettings() {
   const { tenantId } = await getAuthContext();
@@ -154,4 +155,57 @@ export async function getAuditLogs(page = 0) {
       staffId: true, payload: true, ip: true, createdAt: true,
     },
   });
+}
+
+// ── Staff Management ──────────────────────────────────────────────────────────
+
+export async function getStaffList() {
+  const { tenantId, role } = await getAuthContext();
+  if (role !== 'admin') throw new Error('Admin access required');
+  return prisma.staff.findMany({
+    where: { tenantId },
+    select: { id: true, staffId: true, name: true, role: true, active: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+export async function createStaff(data: { staffId: string; name: string; role: string; password: string }) {
+  const { tenantId, role } = await getAuthContext();
+  if (role !== 'admin') throw new Error('Admin access required');
+  const passwordHash = await bcrypt.hash(data.password, 10);
+  return prisma.staff.create({
+    data: { tenantId, staffId: data.staffId, name: data.name, role: data.role, passwordHash, active: true },
+    select: { id: true, staffId: true, name: true, role: true, active: true, createdAt: true },
+  });
+}
+
+export async function updateStaff(id: string, data: { name?: string; role?: string; password?: string }) {
+  const { tenantId, role } = await getAuthContext();
+  if (role !== 'admin') throw new Error('Admin access required');
+  const update: Record<string, unknown> = {};
+  if (data.name) update.name = data.name;
+  if (data.role) update.role = data.role;
+  if (data.password) update.passwordHash = await bcrypt.hash(data.password, 10);
+  return prisma.staff.update({
+    where: { id, tenantId },
+    data: update,
+    select: { id: true, staffId: true, name: true, role: true, active: true, createdAt: true },
+  });
+}
+
+export async function toggleStaffActive(id: string, active: boolean) {
+  const { tenantId, role } = await getAuthContext();
+  if (role !== 'admin') throw new Error('Admin access required');
+  return prisma.staff.update({
+    where: { id, tenantId },
+    data: { active },
+    select: { id: true, staffId: true, name: true, role: true, active: true, createdAt: true },
+  });
+}
+
+export async function deleteStaff(id: string) {
+  const { tenantId, role, staffDbId } = await getAuthContext();
+  if (role !== 'admin') throw new Error('Admin access required');
+  if (id === staffDbId) throw new Error('Cannot delete your own account');
+  return prisma.staff.delete({ where: { id, tenantId } });
 }
