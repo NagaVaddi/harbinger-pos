@@ -17,7 +17,8 @@ export default function LoginPage() {
       const res = await loginAction(fd);
       if (res.ok) {
         if (res.session) saveSession(res.session);
-        router.push('/dashboard');
+        // Full reload so POS context re-initializes with saved session
+        window.location.href = '/dashboard';
       } else {
         setError(res.error ?? 'Login failed.');
       }
