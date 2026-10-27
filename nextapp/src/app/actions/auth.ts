@@ -85,7 +85,7 @@ const RegisterSchema = z.object({
 });
 
 // ── loginAction ────────────────────────────────────────────────
-export async function loginAction(formData: FormData): Promise<{ ok: boolean; error?: string; session?: { staffId: string; staffName: string; role: string } }> {
+export async function loginAction(formData: FormData): Promise<{ ok: boolean; error?: string; session?: { staffId: string; staffName: string; role: 'admin' | 'manager' | 'waiter' | 'kitchen' | 'cashier' } }> {
   const raw = {
     tenantSlug: formData.get('tenantSlug'),
     staffId: formData.get('staffId'),
@@ -148,7 +148,7 @@ export async function loginAction(formData: FormData): Promise<{ ok: boolean; er
     });
 
     await logAudit(tenant.id, staffId, 'LOGIN', `Staff ${staffId} (${staff.name}) logged in`);
-    return { ok: true, session: { staffId, staffName: staff.name, role: staff.role as 'admin' | 'waiter' | 'kitchen' } };
+    return { ok: true, session: { staffId, staffName: staff.name, role: staff.role as 'admin' | 'manager' | 'waiter' | 'kitchen' | 'cashier' } };
   } catch (err) {
     console.error('loginAction:', err);
     return { ok: false, error: 'Server error. Please try again.' };

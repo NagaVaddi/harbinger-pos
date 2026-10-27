@@ -114,7 +114,7 @@ export interface Staff {
   name: string;
   staffId: string;
   password: string;
-  role: 'admin' | 'waiter' | 'kitchen';
+  role: 'admin' | 'manager' | 'waiter' | 'kitchen' | 'cashier';
   kitchenId?: string;
   active: boolean;
 }
@@ -122,7 +122,7 @@ export interface Staff {
 export interface Session {
   staffId: string;
   staffName: string;
-  role: 'admin' | 'waiter' | 'kitchen';
+  role: 'admin' | 'manager' | 'waiter' | 'kitchen' | 'cashier';
   kitchenId?: string;
   kitchenName?: string;
 }
