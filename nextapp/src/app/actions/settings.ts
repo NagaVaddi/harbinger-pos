@@ -174,7 +174,7 @@ export async function createStaff(data: { staffId: string; name: string; role: s
   if (role !== 'admin') throw new Error('Admin access required');
   const passwordHash = await bcrypt.hash(data.password, 10);
   return prisma.staff.create({
-    data: { tenantId, staffId: data.staffId, name: data.name, role: data.role, passwordHash, active: true },
+    data: { tenantId, staffId: data.staffId, name: data.name, role: data.role as any, passwordHash, active: true },
     select: { id: true, staffId: true, name: true, role: true, active: true, createdAt: true },
   });
 }
@@ -184,7 +184,7 @@ export async function updateStaff(id: string, data: { name?: string; role?: stri
   if (role !== 'admin') throw new Error('Admin access required');
   const update: Record<string, unknown> = {};
   if (data.name) update.name = data.name;
-  if (data.role) update.role = data.role;
+  if (data.role) update.role = data.role as any;
   if (data.password) update.passwordHash = await bcrypt.hash(data.password, 10);
   return prisma.staff.update({
     where: { id, tenantId },

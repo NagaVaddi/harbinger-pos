@@ -85,7 +85,7 @@ const RegisterSchema = z.object({
 });
 
 // ── loginAction ────────────────────────────────────────────────
-export async function loginAction(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+export async function loginAction(formData: FormData): Promise<{ ok: boolean; error?: string; session?: { staffId: string; staffName: string; role: string } }> {
   const raw = {
     tenantSlug: formData.get('tenantSlug'),
     staffId: formData.get('staffId'),

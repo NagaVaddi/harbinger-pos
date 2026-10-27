@@ -2,7 +2,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import { getStaffList, createStaff, updateStaff, toggleStaffActive, deleteStaff } from '@/app/actions/settings';
 
-type StaffRow = { id: string; staffId: string; name: string; role: string; active: boolean; createdAt: string };
+type StaffRow = { id: string; staffId: string; name: string; role: string; active: boolean; createdAt: Date };
 type Mode = 'add' | 'edit';
 
 const ROLES = ['admin', 'manager', 'waiter', 'kitchen', 'cashier'];
