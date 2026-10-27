@@ -29,7 +29,7 @@ export default function LoginPage() {
     }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
+          <img src="/logo.png" alt="Harbinger" style={{ height: 56, width: 'auto', objectFit: 'contain', marginBottom: 8 }} />
           <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Harbinger</h1>
           <p style={{ color: 'var(--text2)', fontSize: 14, marginTop: 4 }}>Sign in to your POS</p>
         </div>

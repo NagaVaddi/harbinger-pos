@@ -72,7 +72,10 @@ export default function Sidebar() {
     }}>
       {/* Brand */}
       <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>⚡ Harbinger</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src="/logo.png" alt="Harbinger" style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>Harbinger</span>
+        </div>
         <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {settings.business}
         </div>
