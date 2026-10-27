@@ -148,7 +148,7 @@ export async function loginAction(formData: FormData): Promise<{ ok: boolean; er
     });
 
     await logAudit(tenant.id, staffId, 'LOGIN', `Staff ${staffId} (${staff.name}) logged in`);
-    return { ok: true };
+    return { ok: true, session: { staffId, staffName: staff.name, role: staff.role as 'admin' | 'waiter' | 'kitchen' } };
   } catch (err) {
     console.error('loginAction:', err);
     return { ok: false, error: 'Server error. Please try again.' };

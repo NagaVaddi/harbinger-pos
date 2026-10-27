@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginAction } from '@/app/actions/auth';
+import { saveSession } from '@/lib/store';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function LoginPage() {
     startTransition(async () => {
       const res = await loginAction(fd);
       if (res.ok) {
+        if (res.session) saveSession(res.session);
         router.push('/dashboard');
       } else {
         setError(res.error ?? 'Login failed.');
