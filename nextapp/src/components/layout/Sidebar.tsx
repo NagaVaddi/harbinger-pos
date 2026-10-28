@@ -11,10 +11,10 @@ const NAV_STRUCTURE = [
     group: 'OPERATE',
     items: [
       { label: 'Dashboard',          href: '/dashboard',  icon: '⬛' },
+      { label: 'Open POS',           href: '/register',   icon: '🛒' },
       { label: 'Products',           href: '/products',   icon: '📦' },
       { label: 'Stock Room',         href: '/stock',      icon: '🏪' },
       { label: 'Online & Delivery',  href: '/delivery',   icon: '🛵' },
-      { label: 'Delivery Partners',  href: '/delivery#drivers', icon: '🚗' },
     ],
   },
   {
@@ -27,7 +27,6 @@ const NAV_STRUCTURE = [
   {
     group: 'MONEY',
     items: [
-      { label: 'Orders',             href: '/register',   icon: '🛒' },
       { label: 'Outlets & Registers',href: '/outlets',    icon: '🏷️' },
       { label: 'Accounts',           href: '/accounts',   icon: '📒' },
     ],
@@ -59,7 +58,7 @@ const SHIFTS_ITEM   = { label: 'Shifts',      href: '/settings/shifts',  icon: '
 const NOTES_ITEM    = { label: 'Note Presets', href: '/settings/notes',  icon: '📝' };
 const FEATURES_ITEM = { label: 'Features',    href: '/settings/features', icon: '🧩' };
 
-// Which hrefs each role can access (admin gets everything)
+// Which hrefs each role can access (admin/owner/manager get everything)
 const ROLE_ALLOWED: Record<string, string[]> = {
   manager:  ['/dashboard', '/register', '/products', '/customers', '/jobs', '/stock', '/reports', '/delivery', '/restaurant', '/restaurant/kds', '/hcm', '/einvoicing', '/outlets', '/accounts', '/promotions'],
   waiter:   ['/register', '/customers', '/restaurant', '/restaurant/kds'],
@@ -78,14 +77,17 @@ export default function Sidebar() {
 
   const canSee = (href: string) => {
     if (isAdmin || !role) return true;
+    const allowed = ROLE_ALLOWED[role];
+    // Unrecognized role (e.g. 'owner') → treat as full access
+    if (!allowed) return true;
     const base = href.split('#')[0];
-    return (ROLE_ALLOWED[role] ?? []).some(allowed => base === allowed || base.startsWith(allowed + '/'));
+    return allowed.some(a => base === a || base.startsWith(a + '/'));
   };
 
   const showRestaurant = settings.bizType === 'restaurant' || isEnabled(FeatureKey.RESTAURANT_MODULE);
   const showHCM = isEnabled(FeatureKey.HCM_MODULE);
   const showEInvoicing = isEnabled(FeatureKey.E_INVOICING);
-  const readyKOTs = db.kots.filter(k => k.status === 'ready').length;
+  const readyKOTs = (db.kots ?? []).filter(k => k.status === 'ready').length;
 
   // Build full nav structure
   const groups = NAV_STRUCTURE.map(g => {
