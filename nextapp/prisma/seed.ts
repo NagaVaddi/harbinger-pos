@@ -4,16 +4,17 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 const DEFAULT_FEATURE_FLAGS = [
-  { key: 'restaurant_module',   enabled: false },
-  { key: 'kot_printing',        enabled: false },
-  { key: 'ai_image_gen',        enabled: true  },
-  { key: 'ai_demand_forecasting', enabled: false },
-  { key: 'barcode_generation',  enabled: true  },
-  { key: 'e_invoicing',         enabled: false },
-  { key: 'shift_management',    enabled: false },
-  { key: 'crm_module',          enabled: false },
-  { key: 'hcm_module',          enabled: false },
-  { key: 'custom_reports',      enabled: false },
+  { key: 'restaurant_module',     enabled: false }, // off unless bizType=restaurant
+  { key: 'kot_printing',          enabled: true  },
+  { key: 'ai_image_gen',          enabled: true  },
+  { key: 'ai_demand_forecasting', enabled: true  },
+  { key: 'barcode_generation',    enabled: true  },
+  { key: 'e_invoicing',           enabled: true  },
+  { key: 'shift_management',      enabled: true  },
+  { key: 'crm_module',            enabled: true  },
+  { key: 'hcm_module',            enabled: true  },
+  { key: 'custom_reports',        enabled: true  },
+  { key: 'jobs_module',           enabled: true  },
 ];
 
 const DEFAULT_PREDEFINED_NOTES = [
@@ -77,7 +78,7 @@ async function main() {
   for (const flag of DEFAULT_FEATURE_FLAGS) {
     await prisma.tenantFeatureFlag.upsert({
       where: { tenantId_key: { tenantId: tenant.id, key: flag.key } },
-      update: {},
+      update: { enabled: flag.enabled },
       create: { tenantId: tenant.id, key: flag.key, enabled: flag.enabled },
     });
   }

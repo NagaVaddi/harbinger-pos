@@ -22,17 +22,17 @@ export type FeatureFlags = {
 };
 
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
-  [FeatureKey.RESTAURANT_MODULE]:  false,
-  [FeatureKey.KOT_PRINTING]:       false,
+  [FeatureKey.RESTAURANT_MODULE]:  false,  // off unless bizType=restaurant
+  [FeatureKey.KOT_PRINTING]:       true,
   [FeatureKey.AI_IMAGE_GEN]:       true,
-  [FeatureKey.AI_DEMAND_FORECAST]: false,
+  [FeatureKey.AI_DEMAND_FORECAST]: true,
   [FeatureKey.BARCODE_GENERATION]: true,
-  [FeatureKey.E_INVOICING]:        false,
-  [FeatureKey.SHIFT_MANAGEMENT]:   false,
-  [FeatureKey.CRM_MODULE]:         false,
-  [FeatureKey.HCM_MODULE]:         false,
-  [FeatureKey.CUSTOM_REPORTS]:     false,
-  [FeatureKey.JOBS_MODULE]:        false,
+  [FeatureKey.E_INVOICING]:        true,
+  [FeatureKey.SHIFT_MANAGEMENT]:   true,
+  [FeatureKey.CRM_MODULE]:         true,
+  [FeatureKey.HCM_MODULE]:         true,
+  [FeatureKey.CUSTOM_REPORTS]:     true,
+  [FeatureKey.JOBS_MODULE]:        true,
 };
 
 export type BizType =
