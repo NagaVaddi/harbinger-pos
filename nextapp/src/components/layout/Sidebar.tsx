@@ -5,45 +5,66 @@ import { usePOS } from '@/lib/context';
 import { useFeature } from '@/components/providers/FeatureProvider';
 import { FeatureKey } from '@/lib/types';
 
-const BASE_NAV = [
-  { group: 'Main', items: [
-    { label: 'Dashboard',   href: '/dashboard',  icon: '⬛' },
-    { label: 'Register',    href: '/register',   icon: '🛒' },
-    { label: 'Products',    href: '/products',   icon: '📦' },
-    { label: 'Customers',   href: '/customers',  icon: '👥' },
-  ]},
-  { group: 'Operations', items: [
-    { label: 'Jobs',        href: '/jobs',       icon: '🔧' },
-    { label: 'Stock',       href: '/stock',      icon: '🏪' },
-    { label: 'Reports',     href: '/reports',    icon: '📊' },
-    { label: 'Delivery',    href: '/delivery',   icon: '🚗' },
-  ]},
+// Nav structure matching legacy Harbinger layout
+const NAV_STRUCTURE = [
+  {
+    group: 'OPERATE',
+    items: [
+      { label: 'Dashboard',          href: '/dashboard',  icon: '⬛' },
+      { label: 'Products',           href: '/products',   icon: '📦' },
+      { label: 'Stock Room',         href: '/stock',      icon: '🏪' },
+      { label: 'Online & Delivery',  href: '/delivery',   icon: '🛵' },
+      { label: 'Delivery Partners',  href: '/delivery#drivers', icon: '🚗' },
+    ],
+  },
+  {
+    group: 'GROW',
+    items: [
+      { label: 'Customers',  href: '/customers',   icon: '👥' },
+      { label: 'Promotions', href: '/promotions',  icon: '🎁' },
+    ],
+  },
+  {
+    group: 'MONEY',
+    items: [
+      { label: 'Orders',             href: '/register',   icon: '🛒' },
+      { label: 'Outlets & Registers',href: '/outlets',    icon: '🏷️' },
+      { label: 'Accounts',           href: '/accounts',   icon: '📒' },
+    ],
+  },
+  {
+    group: 'ADMIN',
+    items: [
+      { label: 'Team',          href: '/settings/staff',    icon: '👤' },
+      { label: 'Control Panel', href: '/settings',          icon: '⚙️' },
+    ],
+  },
 ];
 
-const RESTAURANT_NAV = { group: 'Restaurant', items: [
-  { label: 'Tables',        href: '/restaurant',         icon: '🍽️' },
-  { label: 'Kitchen Display', href: '/restaurant/kds',   icon: '👨‍🍳' },
-  { label: 'Kitchen Setup', href: '/restaurant/kitchen', icon: '⚙️' },
-]};
+const RESTAURANT_ITEMS = [
+  { label: 'Tables',          href: '/restaurant',         icon: '🍽️' },
+  { label: 'Kitchen Display', href: '/restaurant/kds',     icon: '👨‍🍳' },
+  { label: 'Kitchen Setup',   href: '/restaurant/kitchen', icon: '⚙️' },
+];
 
-const SETUP_NAV = { group: 'Setup', items: [
-  { label: 'Settings',       href: '/settings',           icon: '⚙️' },
-  { label: 'Staff',          href: '/settings/staff',     icon: '👤' },
-  { label: 'Business Hours', href: '/settings/business',  icon: '🕐' },
-  { label: 'Shifts',         href: '/settings/shifts',    icon: '💼' },
-  { label: 'Note Presets',   href: '/settings/notes',     icon: '📝' },
-  { label: 'Features',       href: '/settings/features',  icon: '🧩' },
-]};
+// Feature-gated items that go in MONEY group
+const EINVOICING_ITEM = { label: 'E-Invoicing', href: '/einvoicing', icon: '🧾' };
+const REPORTS_ITEM    = { label: 'Reports',     href: '/reports',    icon: '📊' };
 
-const HCM_NAV_ITEM = { label: 'Team (HCM)', href: '/hcm', icon: '👤' };
-const EINVOICING_NAV_ITEM = { label: 'E-Invoicing', href: '/einvoicing', icon: '🧾' };
+// Feature-gated items that go in ADMIN group
+const HCM_ITEM      = { label: 'Team (HCM)', href: '/hcm',              icon: '👤' };
+const JOBS_ITEM     = { label: 'Jobs',        href: '/jobs',             icon: '🔧' };
+const BIZ_HOURS     = { label: 'Business Hours', href: '/settings/business', icon: '🕐' };
+const SHIFTS_ITEM   = { label: 'Shifts',      href: '/settings/shifts',  icon: '💼' };
+const NOTES_ITEM    = { label: 'Note Presets', href: '/settings/notes',  icon: '📝' };
+const FEATURES_ITEM = { label: 'Features',    href: '/settings/features', icon: '🧩' };
 
 // Which hrefs each role can access (admin gets everything)
 const ROLE_ALLOWED: Record<string, string[]> = {
-  manager:  ['/dashboard', '/register', '/products', '/customers', '/jobs', '/stock', '/reports', '/delivery', '/restaurant', '/restaurant/kds', '/hcm', '/einvoicing'],
+  manager:  ['/dashboard', '/register', '/products', '/customers', '/jobs', '/stock', '/reports', '/delivery', '/restaurant', '/restaurant/kds', '/hcm', '/einvoicing', '/outlets', '/accounts', '/promotions'],
   waiter:   ['/register', '/customers', '/restaurant', '/restaurant/kds'],
   kitchen:  ['/restaurant/kds'],
-  cashier:  ['/dashboard', '/register', '/customers'],
+  cashier:  ['/dashboard', '/register', '/customers', '/outlets'],
 };
 
 export default function Sidebar() {
@@ -57,7 +78,8 @@ export default function Sidebar() {
 
   const canSee = (href: string) => {
     if (isAdmin || !role) return true;
-    return (ROLE_ALLOWED[role] ?? []).some(allowed => href === allowed || href.startsWith(allowed + '/'));
+    const base = href.split('#')[0];
+    return (ROLE_ALLOWED[role] ?? []).some(allowed => base === allowed || base.startsWith(allowed + '/'));
   };
 
   const showRestaurant = settings.bizType === 'restaurant' || isEnabled(FeatureKey.RESTAURANT_MODULE);
@@ -65,22 +87,41 @@ export default function Sidebar() {
   const showEInvoicing = isEnabled(FeatureKey.E_INVOICING);
   const readyKOTs = db.kots.filter(k => k.status === 'ready').length;
 
-  // Inject feature-gated items into Operations group
-  const opsItems = BASE_NAV[1].items.filter(Boolean);
-  if (showHCM) opsItems.push(HCM_NAV_ITEM);
-  if (showEInvoicing) opsItems.push(EINVOICING_NAV_ITEM);
+  // Build full nav structure
+  const groups = NAV_STRUCTURE.map(g => {
+    let items = [...g.items];
 
-  const allGroups = [
-    BASE_NAV[0],
-    { ...BASE_NAV[1], items: opsItems },
-    ...(showRestaurant ? [RESTAURANT_NAV] : []),
-    ...(isAdmin ? [SETUP_NAV] : []),
-  ];
+    if (g.group === 'MONEY') {
+      items.push(REPORTS_ITEM);
+      if (showEInvoicing) items.push(EINVOICING_ITEM);
+    }
 
-  // Filter items by role
-  const nav = allGroups
+    if (g.group === 'ADMIN') {
+      if (showHCM) items = [HCM_ITEM, ...items.filter(i => i.href !== '/settings/staff')];
+      items.push(BIZ_HOURS, SHIFTS_ITEM, NOTES_ITEM, FEATURES_ITEM);
+      // Jobs always visible to admins
+      items = [JOBS_ITEM, ...items];
+    }
+
+    return { ...g, items };
+  });
+
+  // Insert restaurant group after OPERATE if applicable
+  const fullGroups = showRestaurant
+    ? [groups[0], { group: 'RESTAURANT', items: RESTAURANT_ITEMS }, ...groups.slice(1)]
+    : groups;
+
+  // Filter by role
+  const nav = fullGroups
     .map(g => ({ ...g, items: g.items.filter(i => canSee(i.href)) }))
     .filter(g => g.items.length > 0);
+
+  const isActive = (href: string) => {
+    const base = href.split('#')[0];
+    if (base === '/restaurant') return pathname === '/restaurant' || pathname.startsWith('/restaurant/order');
+    if (base === '/settings') return pathname === '/settings'; // exact only — sub-pages handled by their own entries
+    return pathname === base || pathname.startsWith(base + '/');
+  };
 
   return (
     <aside style={{
@@ -107,13 +148,11 @@ export default function Sidebar() {
       <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
         {nav.map(group => (
           <div key={group.group} style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0 8px 6px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0 8px 6px' }}>
               {group.group}
             </div>
             {group.items.map(item => {
-              const active = pathname === item.href || (item.href !== '/restaurant' && pathname.startsWith(item.href));
-              const isRestaurantRoot = item.href === '/restaurant' && (pathname === '/restaurant' || pathname.startsWith('/restaurant/order'));
-              const isActive = active || isRestaurantRoot;
+              const active = isActive(item.href);
               const badge = item.href === '/restaurant/kds' && readyKOTs > 0 ? readyKOTs : 0;
               return (
                 <Link key={item.href} href={item.href} style={{
@@ -124,9 +163,9 @@ export default function Sidebar() {
                   borderRadius: 8,
                   marginBottom: 2,
                   fontSize: 14,
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? 'var(--text)' : 'var(--text2)',
-                  background: isActive ? 'var(--bg3)' : 'transparent',
+                  fontWeight: active ? 600 : 400,
+                  color: active ? 'var(--text)' : 'var(--text2)',
+                  background: active ? 'var(--bg3)' : 'transparent',
                   textDecoration: 'none',
                   transition: 'all 0.15s',
                   justifyContent: 'space-between',
