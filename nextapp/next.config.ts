@@ -1,8 +1,12 @@
 import type { NextConfig } from 'next';
+import path from 'path';
 
 const nextConfig: NextConfig = {
-  // Allow the app to be served from a sub-path on GitHub Pages if needed
-  // For now, run at root
+  experimental: {
+    turbo: {
+      root: path.resolve(__dirname),
+    },
+  },
 };
 
 export default nextConfig;

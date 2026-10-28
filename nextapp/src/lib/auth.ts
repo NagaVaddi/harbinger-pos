@@ -28,10 +28,12 @@ export async function getTenantId(): Promise<string> {
     // cookie() may throw outside request context
   }
 
-  // Demo fallback
+  // Demo fallback — upsert so the tenant always exists
   try {
-    const tenant = await prisma.tenant.findUniqueOrThrow({
-      where: { slug: DEMO_TENANT_SLUG },
+    const tenant = await prisma.tenant.upsert({
+      where:  { slug: DEMO_TENANT_SLUG },
+      update: {},
+      create: { name: 'Harbinger Demo', slug: DEMO_TENANT_SLUG, plan: 'starter' },
       select: { id: true },
     });
     return tenant.id;
