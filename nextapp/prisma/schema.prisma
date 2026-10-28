@@ -60,6 +60,10 @@ model Tenant {
   auditLogs           AuditLog[]
   invoiceSettings     TenantInvoiceSettings?
   employees           Employee[]
+  suppliers           Supplier[]
+  purchaseOrders      PurchaseOrder[]
+  stockHistories      StockHistory[]
+  stockCounts         StockCount[]
 }
 
 model TenantConfig {
@@ -130,6 +134,12 @@ model Settings {
 
   // Stored as JSON: BusinessHoursDay[]
   businessHours   Json?
+
+  // Barcode scanner config
+  barcodePrefix       String  @default("99")
+  barcodeScanSku      Boolean @default(true)
+  barcodeQtyEntry     Boolean @default(true)
+  barcodeLabelsPerRow Int     @default(3)
 
   updatedAt       DateTime @updatedAt
 }
@@ -209,6 +219,9 @@ model Product {
   kotPrinter Int?      // 1-4
   image      String?
   metadata   Json?     // industry-specific extra fields (drug schedule, part number, etc.)
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?
@@ -549,6 +562,128 @@ model StockBatch {
   updatedAt   DateTime  @updatedAt
 
   @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────
+// SUPPLIERS & PURCHASE ORDERS
+// ─────────────────────────────────────────────
+
+model Supplier {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String?
+  email        String?
+  paymentTerms String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([tenantId])
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  tenantId    String
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplierId  String?
+  supplier    Supplier?           @relation(fields: [supplierId], references: [id])
+  status      PurchaseOrderStatus @default(DRAFT)
+  totalAmount Float               @default(0)
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  items PurchaseOrderItem[]
+
+  @@index([tenantId])
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  productName     String
+  quantity        Float
+  unitCost        Float
+
+  @@index([purchaseOrderId])
+}
+
+// ─────────────────────────────────────────────
+// STOCK HISTORY
+// ─────────────────────────────────────────────
+
+enum StockHistoryType {
+  RECEIVE
+  ADJUST
+  SALE
+  DAMAGE
+  RETURN
+}
+
+model StockHistory {
+  id          String           @id @default(cuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productId   String
+  productName String
+  type        StockHistoryType
+  quantity    Float
+  reference   String?
+  staffId     String?
+  staffName   String?
+  createdAt   DateTime         @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, productId])
+  @@index([tenantId, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// STOCK COUNT
+// ─────────────────────────────────────────────
+
+enum StockCountStatus {
+  DRAFT
+  COMPLETED
+}
+
+model StockCount {
+  id          String           @id @default(cuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  status      StockCountStatus @default(DRAFT)
+  staffId     String?
+  staffName   String?
+  createdAt   DateTime         @default(now())
+  completedAt DateTime?
+
+  items StockCountItem[]
+
+  @@index([tenantId])
+}
+
+model StockCountItem {
+  id           String     @id @default(cuid())
+  stockCountId String
+  stockCount   StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  productId    String
+  productName  String
+  expectedQty  Float
+  countedQty   Float?
+
+  @@index([stockCountId])
 }
 
 // ─────────────────────────────────────────────
