@@ -302,3 +302,92 @@ export interface NavItem {
   icon: string;
   group?: string;
 }
+
+// ── Extended types for new pages ─────────────────────────────
+export interface AccountVoucher {
+  id: string;
+  type: 'payment' | 'receipt' | 'contra' | 'journal' | 'purchase';
+  no: string;
+  date: string;
+  narration: string;
+  amount: number;
+  ledger: string;
+  createdAt: string;
+}
+
+export interface Register {
+  id: string;
+  name: string;
+  username: string;
+  staff: string;
+  status: 'open' | 'closed';
+  currentShift?: string;
+  createdAt: string;
+}
+
+export interface CashVoucher {
+  id: string;
+  amount: number;
+  note: string;
+  createdAt: string;
+}
+
+export interface DeliveryDriver {
+  id: string;
+  name: string;
+  phone?: string;
+  vehicle?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export type OfferDiscountType = 'percentage' | 'fixed' | 'bogo' | 'combo';
+
+export interface Offer {
+  id: string;
+  title: string;
+  product: string;
+  discountType: OfferDiscountType;
+  discountValue: number;
+  validFrom: string;
+  validUntil: string;
+  status: 'active' | 'inactive' | 'expired';
+  createdAt: string;
+}
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  discountType: OfferDiscountType;
+  discountValue: number;
+  minOrder: number;
+  maxUses: number;
+  usedCount: number;
+  validFrom: string;
+  validUntil: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+}
+
+export interface HeldTicket {
+  id: string;
+  label: string;
+  lines: OrderLine[];
+  customerId?: string;
+  discount: number;
+  method: string;
+  orderMeta: Record<string, string>;
+  createdAt: string;
+}
+
+export interface JournalEntry {
+  id: string;
+  date: string;
+  description: string;
+  debitLedger: string;
+  creditLedger: string;
+  amount: number;
+  orderId?: string;
+  reference?: string;
+  createdAt: string;
+}

@@ -2,7 +2,7 @@
 // Lightweight in-browser store backed by localStorage (demo mode).
 // In Cloud mode this will be replaced by API calls to server/cloud/.
 
-import { Settings, Product, Customer, Order, Job, Voucher, StockBatch, Table, Kitchen, KOT, Staff, PredefinedNote, Shift, Employee, DEFAULT_FEATURE_FLAGS } from './types';
+import { Settings, Product, Customer, Order, Job, Voucher, StockBatch, Table, Kitchen, KOT, Staff, PredefinedNote, Shift, Employee, DEFAULT_FEATURE_FLAGS, AccountVoucher, Register, CashVoucher, DeliveryDriver, Offer, PromoCode, HeldTicket, JournalEntry } from './types';
 
 export interface DB {
   settings: Settings;
@@ -19,6 +19,17 @@ export interface DB {
   predefinedNotes: PredefinedNote[];
   shifts: Shift[];
   employees: Employee[];
+  // Extended fields
+  accountVouchers: AccountVoucher[];
+  registers: Register[];
+  cashVouchers: CashVoucher[];
+  drivers: DeliveryDriver[];
+  connectedApps: string[];
+  appKeys: Record<string, string>;
+  offers: Offer[];
+  promoCodes: PromoCode[];
+  heldTickets: HeldTicket[];
+  journalEntries: JournalEntry[];
   _version: number;
 }
 
@@ -81,6 +92,16 @@ export function defaultDB(): DB {
     predefinedNotes: [...DEFAULT_PREDEFINED_NOTES],
     shifts: [],
     employees: [],
+    accountVouchers: [],
+    registers: [],
+    cashVouchers: [],
+    drivers: [],
+    connectedApps: [],
+    appKeys: {},
+    offers: [],
+    promoCodes: [],
+    heldTickets: [],
+    journalEntries: [],
     _version: 1,
   };
 }

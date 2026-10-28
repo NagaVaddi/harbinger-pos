@@ -3,11 +3,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePOS } from '@/lib/context';
 import { Product, FeatureKey } from '@/lib/types';
 import { fmtCurrency, uid } from '@/lib/fmt';
+import { autoArabic } from '@/lib/arabic';
 import { useFeature } from '@/components/providers/FeatureProvider';
+import Pagination from '@/components/Pagination';
+
+const PAGE_SIZE = 50;
 
 // Generate a simple EAN-13 barcode string from a product ID
 function genEAN13(productId: string): string {
-  // Hash the id into a 12-digit numeric string, then compute check digit
   let hash = 0;
   for (let i = 0; i < productId.length; i++) {
     hash = (hash * 31 + productId.charCodeAt(i)) >>> 0;
@@ -19,6 +22,29 @@ function genEAN13(productId: string): string {
   }
   const check = (10 - (sum % 10)) % 10;
   return base + check;
+}
+
+// Build a proper EAN-13 barcode SVG string
+function buildEAN13SVG(code: string, height = 40, scale = 2): string {
+  const L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+  const G = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
+  const R = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
+  const PARITY = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+  const c13 = code.padStart(13, '0').slice(-13);
+  const d = c13.split('').map(Number);
+  const par = PARITY[d[0]];
+  let bits = '00000000';
+  bits += '101';
+  for (let i = 0; i < 6; i++) bits += par[i] === 'L' ? L[d[i + 1]] : G[d[i + 1]];
+  bits += '01010';
+  for (let i = 7; i < 13; i++) bits += R[d[i]];
+  bits += '101';
+  bits += '00000000';
+  const w = bits.length * scale;
+  const rects = bits.split('').map((b, i) =>
+    b === '1' ? `<rect x="${i * scale}" y="0" width="${scale}" height="${height}" fill="#000"/>` : ''
+  ).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${height + 10}"><rect width="${w}" height="${height + 10}" fill="#fff"/>${rects}<text x="${w / 2}" y="${height + 9}" font-family="monospace" font-size="8" text-anchor="middle" fill="#000">${c13}</text></svg>`;
 }
 
 // Fetch a relevant image from Unsplash for a product name.
@@ -332,7 +358,7 @@ function ProductModal({
 
   const set = useCallback((field: keyof Product, value: unknown) => setForm(f => ({ ...f, [field]: value })), []);
 
-  const autoAr = (en: string) => en;
+  const autoAr = (en: string) => autoArabic(en);
 
   return (
     <div style={{
@@ -468,10 +494,13 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Partial<Product> | null | false>(false);
   const [view, setView] = useState<'table' | 'grid'>('table');
+  const [page, setPage] = useState(1);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
-  const products = db.products.filter(p =>
+  const filtered = db.products.filter(p =>
     !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.barcode?.includes(search) || p.sku?.includes(search)
   );
+  const products = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleSave = (p: Product) => {
     save(d => {
@@ -486,14 +515,109 @@ export default function ProductsPage() {
     save(d => { const p = d.products.find(x => x.id === id); if (p) p.active = !p.active; });
   };
 
+  const exportCSV = () => {
+    const rows = [['Name', 'NameAr', 'SKU', 'Barcode', 'Price', 'Cost', 'Category', 'Unit', 'Stock', 'MinStock', 'Active']];
+    db.products.forEach(p => rows.push([
+      p.name, p.nameAr ?? '', p.sku ?? '', p.barcode ?? '',
+      String(p.price), String(p.cost ?? ''), p.category ?? '', p.unit ?? '',
+      String(p.stock), String(p.minStock ?? ''), p.active ? '1' : '0',
+    ]));
+    const csv = rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'products.csv';
+    a.click();
+  };
+
+  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = ev.target?.result as string;
+      const lines = text.trim().split('\n');
+      if (lines.length < 2) return alert('CSV is empty or missing data rows');
+      const header = lines[0].replace(/\r/g, '').split(',').map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+      const nameIdx = header.indexOf('name');
+      const priceIdx = header.indexOf('price');
+      if (nameIdx < 0 || priceIdx < 0) return alert('CSV must have at least Name and Price columns');
+      const getCol = (row: string[], col: string) => {
+        const idx = header.indexOf(col);
+        if (idx < 0) return '';
+        return (row[idx] ?? '').replace(/^"|"$/g, '').trim();
+      };
+      save(d => {
+        for (let i = 1; i < lines.length; i++) {
+          const row = lines[i].replace(/\r/g, '').split(',');
+          const name = getCol(row, 'name');
+          if (!name) continue;
+          const price = parseFloat(getCol(row, 'price')) || 0;
+          const sku = getCol(row, 'sku') || undefined;
+          const existing = sku ? d.products.find(p => p.sku === sku) : d.products.find(p => p.name === name);
+          const productData: Partial<Product> = {
+            name, nameAr: getCol(row, 'namear') || undefined,
+            sku, barcode: getCol(row, 'barcode') || undefined,
+            price, cost: parseFloat(getCol(row, 'cost')) || undefined,
+            category: getCol(row, 'category') || undefined,
+            unit: getCol(row, 'unit') || undefined,
+            stock: parseFloat(getCol(row, 'stock')) || 0,
+            minStock: parseFloat(getCol(row, 'minstock')) || undefined,
+            active: getCol(row, 'active') !== '0',
+            taxable: true,
+          };
+          if (existing) {
+            Object.assign(existing, productData);
+          } else {
+            d.products.push({ id: uid(), taxable: true, active: true, stock: 0, ...productData } as Product);
+          }
+        }
+        return d;
+      });
+      alert(`Import complete. Rows processed: ${lines.length - 1}`);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const printLabel = (p: Product) => {
+    const barcode = p.barcode || genEAN13(p.id);
+    const svgStr = buildEAN13SVG(barcode, 32, 2);
+    const win = window.open('', '_blank', 'width=260,height=220,menubar=no,toolbar=no');
+    if (!win) return;
+    const doc = win.document;
+    const style = doc.createElement('style');
+    style.textContent = `@page{size:50mm 30mm;margin:2mm}body{font-family:Arial,sans-serif;margin:0;padding:3px;width:46mm;overflow:hidden}.nm{font-weight:700;font-size:9pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pr{font-size:11pt;font-weight:700}.sk{font-size:6pt;color:#555}.bc{margin:1mm 0;text-align:center}svg{display:block;margin:0 auto}@media print{button{display:none}}`;
+    doc.head.appendChild(style);
+    const nm = doc.createElement('div'); nm.className = 'nm'; nm.textContent = p.name; doc.body.appendChild(nm);
+    if (p.nameAr) { const ar = doc.createElement('div'); ar.style.cssText = 'font-size:8pt;text-align:right;direction:rtl'; ar.textContent = p.nameAr; doc.body.appendChild(ar); }
+    const pr = doc.createElement('div'); pr.className = 'pr'; pr.textContent = `${settings.currency} ${p.price.toFixed(2)}`; doc.body.appendChild(pr);
+    const bc = doc.createElement('div'); bc.className = 'bc';
+    const parser = new (win as unknown as { DOMParser: typeof DOMParser }).DOMParser();
+    const svgDoc = parser.parseFromString(svgStr, 'image/svg+xml');
+    const svgEl = doc.importNode(svgDoc.documentElement, true);
+    bc.appendChild(svgEl);
+    doc.body.appendChild(bc);
+    if (p.sku) { const sk = doc.createElement('div'); sk.className = 'sk'; sk.textContent = `SKU: ${p.sku}`; doc.body.appendChild(sk); }
+    const btn = doc.createElement('button'); btn.textContent = 'Print Label';
+    btn.style.cssText = 'margin-top:4px;padding:4px 16px;cursor:pointer';
+    btn.onclick = () => { win.print(); win.close(); };
+    doc.body.appendChild(btn);
+    win.focus();
+  };
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center' }}>
-        <input className="inp" style={{ maxWidth: 320 }} placeholder="Search products…" value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Hidden file input for CSV import */}
+      <input ref={csvInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={importCSV} />
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input className="inp" style={{ maxWidth: 280 }} placeholder="Search products…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
         <div style={{ display: 'flex', gap: 4 }}>
           <button className={`btn ${view === 'table' ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '7px 10px' }} onClick={() => setView('table')}>≡</button>
           <button className={`btn ${view === 'grid' ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '7px 10px' }} onClick={() => setView('grid')}>⊞</button>
         </div>
+        <button className="btn" style={{ fontSize: 12 }} onClick={exportCSV} title="Export all products as CSV">↓ Export CSV</button>
+        <button className="btn" style={{ fontSize: 12 }} onClick={() => csvInputRef.current?.click()} title="Import products from CSV">↑ Import CSV</button>
         <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setEditing({})}>+ New product</button>
       </div>
 
@@ -536,6 +660,7 @@ export default function ProductsPage() {
 
       {/* Table view */}
       {view === 'table' && (
+        <>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <table className="tbl">
             <thead>
@@ -582,7 +707,7 @@ export default function ProductsPage() {
                     <span className={`badge ${p.active ? 'badge-green' : 'badge-red'}`}>{p.active ? 'Active' : 'Inactive'}</span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setEditing(p)}>Edit</button>
                       {barcodeEnabled && !p.barcode && (
                         <button
@@ -597,6 +722,9 @@ export default function ProductsPage() {
                           📊 Barcode
                         </button>
                       )}
+                      <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} title="Print 50×30mm label" onClick={() => printLabel(p)}>
+                        🏷 Label
+                      </button>
                       <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => handleToggle(p.id)}>
                         {p.active ? 'Disable' : 'Enable'}
                       </button>
@@ -612,6 +740,8 @@ export default function ProductsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination total={filtered.length} page={page} pageSize={PAGE_SIZE} onChange={setPage} />
+        </>
       )}
 
       {editing !== false && (

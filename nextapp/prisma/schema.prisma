@@ -64,6 +64,8 @@ model Tenant {
   purchaseOrders      PurchaseOrder[]
   stockHistories      StockHistory[]
   stockCounts         StockCount[]
+  accounts            Account[]
+  journalEntries      JournalEntry[]
 }
 
 model TenantConfig {
@@ -806,4 +808,44 @@ model TenantInvoiceSettings {
   testMode    Boolean  @default(true)
 
   updatedAt   DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// ACCOUNTS & JOURNAL ENTRIES (Double-Entry)
+// ─────────────────────────────────────────────
+
+model Account {
+  id       String   @id @default(cuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code     String
+  name     String
+  type     String   // Asset | Liability | Equity | Revenue | Expense
+  group    String   // Assets | Liabilities | Equity | Income | Expenses
+
+  debitEntries  JournalEntry[] @relation("DebitAccount")
+  creditEntries JournalEntry[] @relation("CreditAccount")
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model JournalEntry {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date            DateTime @default(now())
+  description     String
+  debitAccountId  String
+  debitAccount    Account  @relation("DebitAccount",  fields: [debitAccountId],  references: [id])
+  creditAccountId String
+  creditAccount   Account  @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  amount          Float
+  orderId         String?
+  reference       String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, date])
+  @@index([orderId])
 }

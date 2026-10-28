@@ -29,8 +29,8 @@ const DELIVERY_APPS = [
 
 export default function DeliveryPage() {
   const { db, settings, save } = usePOS();
-  const drivers: Driver[] = (db as any).drivers ?? [];
-  const connectedApps: string[] = (db as any).connectedApps ?? [];
+  const drivers = db.drivers ?? [];
+  const connectedApps: string[] = db.connectedApps ?? [];
 
   const [tab, setTab] = useState<Tab>('apps');
   const [form, setForm] = useState({ name: '', phone: '', vehicle: '' });
@@ -38,7 +38,7 @@ export default function DeliveryPage() {
   const [configApp, setConfigApp] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState('');
 
-  const deliveryOrders = db.orders.filter(o => o.channel === 'delivery' || o.channel === 'online');
+  const deliveryOrders = db.orders.filter(o => (o.metadata as any)?.channel === 'delivery' || (o.metadata as any)?.channel === 'online');
 
   const handleAddDriver = () => {
     if (!form.name.trim()) return alert('Name required');
@@ -146,7 +146,7 @@ export default function DeliveryPage() {
                   <tr key={o.id}>
                     <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{o.no}</td>
                     <td style={{ fontSize: 12, color: 'var(--text2)' }}>{new Date(o.ts).toLocaleString()}</td>
-                    <td><span style={{ textTransform: 'capitalize', fontSize: 13 }}>{o.channel}</span></td>
+                    <td><span style={{ textTransform: 'capitalize', fontSize: 13 }}>{(o.metadata as any)?.channel ?? 'online'}</span></td>
                     <td style={{ fontSize: 13 }}>{o.lines.length} item{o.lines.length !== 1 ? 's' : ''}</td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>{settings.currency} {o.total.toFixed(2)}</td>
                     <td><span className={`badge badge-${o.status === 'paid' ? 'green' : 'red'}`} style={{ textTransform: 'capitalize' }}>{o.status}</span></td>

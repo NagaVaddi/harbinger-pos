@@ -53,8 +53,8 @@ export default function PromotionsPage() {
   const [offerForm, setOfferForm] = useState<Partial<Offer>>({ title: '', product: '', discountType: 'percentage', discountValue: 0, validFrom: new Date().toISOString().slice(0, 10), validUntil: '', status: 'active' });
   const [codeForm, setCodeForm] = useState<Partial<PromoCode>>({ code: '', discountType: 'percentage', discountValue: 0, minOrder: 0, maxUses: 0, validFrom: new Date().toISOString().slice(0, 10), validUntil: '', status: 'active' });
 
-  const offers: Offer[] = (db as any).offers ?? [];
-  const promoCodes: PromoCode[] = (db as any).promoCodes ?? [];
+  const offers = db.offers ?? [];
+  const promoCodes = db.promoCodes ?? [];
 
   const saveOffer = () => {
     if (!offerForm.title?.trim()) return alert('Title required');

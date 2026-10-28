@@ -2,8 +2,11 @@
 import { useState, useMemo } from 'react';
 import { usePOS } from '@/lib/context';
 import { fmtCurrency, fmtDate, uid, now } from '@/lib/fmt';
+import Pagination from '@/components/Pagination';
 
-type Tab = 'daybook' | 'ledgers' | 'coa' | 'trialbalance' | 'pl' | 'balancesheet' | 'cashbook' | 'vat' | 'outstanding' | 'bookschecks';
+const PAGE_SIZE = 50;
+
+type Tab = 'daybook' | 'ledgers' | 'generalledger' | 'coa' | 'trialbalance' | 'pl' | 'balancesheet' | 'cashbook' | 'vat' | 'outstanding' | 'bookschecks';
 type VoucherType = 'payment' | 'receipt' | 'contra' | 'journal' | 'purchase';
 
 interface Voucher {
@@ -28,6 +31,7 @@ const TYPE_COLOR: Record<VoucherType, string> = {
 const TABS: { id: Tab; label: string }[] = [
   { id: 'daybook',      label: 'Day Book' },
   { id: 'ledgers',      label: 'Ledgers' },
+  { id: 'generalledger', label: 'General Ledger' },
   { id: 'coa',          label: 'Chart of Accounts' },
   { id: 'trialbalance', label: 'Trial Balance' },
   { id: 'pl',           label: 'Profit & Loss' },
@@ -64,8 +68,11 @@ export default function AccountsPage() {
   const [typeFilter, setTypeFilter] = useState<VoucherType | 'all'>('all');
   const [showVoucherForm, setShowVoucherForm] = useState<VoucherType | null>(null);
   const [vForm, setVForm] = useState({ narration: '', amount: '', ledger: 'Cash', date: new Date().toISOString().slice(0, 10) });
+  const [dayBookPage, setDayBookPage] = useState(1);
+  const [glPage, setGlPage] = useState(1);
+  const [glLedger, setGlLedger] = useState<string>('all');
 
-  const vouchers: Voucher[] = (db as any).vouchers ?? [];
+  const vouchers: Voucher[] = db.accountVouchers ?? [];
 
   const filtered = useMemo(() => vouchers.filter(v => {
     if (v.date < from || v.date > to) return false;
@@ -80,7 +87,7 @@ export default function AccountsPage() {
     const prefix = { payment: 'PY', receipt: 'RC', contra: 'CT', journal: 'JV', purchase: 'PU' }[type];
     const no = `${prefix}-${String(vouchers.length + 1).padStart(4, '0')}`;
     const v: Voucher = { id: uid(), type, no, date: vForm.date, narration: vForm.narration, amount: parseFloat(vForm.amount), ledger: vForm.ledger, createdAt: now() };
-    save((d: any) => { d.vouchers = [...(d.vouchers ?? []), v]; return d; });
+    save((d: any) => { d.accountVouchers = [...(d.accountVouchers ?? []), v]; return d; });
     setVForm({ narration: '', amount: '', ledger: 'Cash', date: new Date().toISOString().slice(0, 10) });
     setShowVoucherForm(null);
   };
@@ -206,39 +213,49 @@ export default function AccountsPage() {
             </div>
           )}
 
-          <TblWrap>
-            <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Narration</th><th>Ledger</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
-            <tbody>
-              {filtered.map(v => (
-                <tr key={v.id}>
-                  <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{v.no}</td>
-                  <td style={{ fontSize: 12, color: 'var(--text2)' }}>{v.date}</td>
-                  <td><span className="badge" style={{ background: TYPE_COLOR[v.type] + '22', color: TYPE_COLOR[v.type], border: `1px solid ${TYPE_COLOR[v.type]}44`, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{v.type}</span></td>
-                  <td>{v.narration}</td>
-                  <td style={{ color: 'var(--text2)' }}>{v.ledger}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(v.amount)}</td>
-                </tr>
-              ))}
-              {/* POS orders as receipts */}
-              {paidOrders.filter(o => {
-                if (typeFilter !== 'all' && typeFilter !== 'receipt') return false;
-                if (search && !o.no.includes(search)) return false;
-                return true;
-              }).map(o => (
-                <tr key={o.id} style={{ opacity: 0.7 }}>
-                  <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{o.no}</td>
-                  <td style={{ fontSize: 12, color: 'var(--text2)' }}>{o.ts.slice(0, 10)}</td>
-                  <td><span className="badge" style={{ background: 'var(--green)22', color: 'var(--green)', border: '1px solid var(--green)44', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>receipt</span></td>
-                  <td>POS Sale</td>
-                  <td style={{ color: 'var(--text2)', textTransform: 'capitalize' }}>{o.method}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(o.total)}</td>
-                </tr>
-              ))}
-              {!filtered.length && !paidOrders.length && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text2)', padding: 40 }}>No vouchers in this range.</td></tr>
-              )}
-            </tbody>
-          </TblWrap>
+          {(() => {
+            const posRows = paidOrders.filter(o => {
+              if (typeFilter !== 'all' && typeFilter !== 'receipt') return false;
+              if (search && !o.no.toLowerCase().includes(search.toLowerCase())) return false;
+              return true;
+            });
+            const totalRows = filtered.length + posRows.length;
+            const pageFiltered = filtered.slice((dayBookPage - 1) * PAGE_SIZE, dayBookPage * PAGE_SIZE);
+            const pagePosRows = posRows.slice(Math.max(0, (dayBookPage - 1) * PAGE_SIZE - filtered.length), dayBookPage * PAGE_SIZE - filtered.length);
+            return (
+              <>
+                <TblWrap>
+                  <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Narration</th><th>Ledger</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
+                  <tbody>
+                    {pageFiltered.map(v => (
+                      <tr key={v.id}>
+                        <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{v.no}</td>
+                        <td style={{ fontSize: 12, color: 'var(--text2)' }}>{v.date}</td>
+                        <td><span className="badge" style={{ background: TYPE_COLOR[v.type] + '22', color: TYPE_COLOR[v.type], border: `1px solid ${TYPE_COLOR[v.type]}44`, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{v.type}</span></td>
+                        <td>{v.narration}</td>
+                        <td style={{ color: 'var(--text2)' }}>{v.ledger}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(v.amount)}</td>
+                      </tr>
+                    ))}
+                    {pagePosRows.map(o => (
+                      <tr key={o.id} style={{ opacity: 0.7 }}>
+                        <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{o.no}</td>
+                        <td style={{ fontSize: 12, color: 'var(--text2)' }}>{o.ts.slice(0, 10)}</td>
+                        <td><span className="badge" style={{ background: 'var(--green)22', color: 'var(--green)', border: '1px solid var(--green)44', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>receipt</span></td>
+                        <td>POS Sale</td>
+                        <td style={{ color: 'var(--text2)', textTransform: 'capitalize' }}>{o.method}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(o.total)}</td>
+                      </tr>
+                    ))}
+                    {!totalRows && (
+                      <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text2)', padding: 40 }}>No vouchers in this range.</td></tr>
+                    )}
+                  </tbody>
+                </TblWrap>
+                <Pagination total={totalRows} page={dayBookPage} pageSize={PAGE_SIZE} onChange={setDayBookPage} />
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -277,6 +294,57 @@ export default function AccountsPage() {
           })}
         </div>
       )}
+
+      {/* ── GENERAL LEDGER ───────────────────────────────────────── */}
+      {tab === 'generalledger' && (() => {
+        const entries = db.journalEntries ?? [];
+        const inRange = entries.filter(e => e.date >= from && e.date <= to);
+        const ledgerNames = Array.from(new Set(inRange.flatMap(e => [e.debitLedger, e.creditLedger]))).sort();
+        const glFiltered = glLedger === 'all' ? inRange : inRange.filter(e => e.debitLedger === glLedger || e.creditLedger === glLedger);
+        const glPaged = glFiltered.slice((glPage - 1) * PAGE_SIZE, glPage * PAGE_SIZE);
+        return (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+              <select className="inp" style={{ maxWidth: 220 }} value={glLedger} onChange={e => { setGlLedger(e.target.value); setGlPage(1); }}>
+                <option value="all">All accounts</option>
+                {ledgerNames.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <span style={{ fontSize: 12, color: 'var(--text2)' }}>{glFiltered.length} entries auto-posted from sales</span>
+            </div>
+            {glFiltered.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', color: 'var(--text2)', padding: 48 }}>
+                No journal entries yet. Entries are auto-posted when orders are charged at the Register.
+              </div>
+            ) : (
+              <>
+                <TblWrap>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th>Debit</th>
+                      <th>Credit</th>
+                      <th style={{ textAlign: 'right' }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {glPaged.map(e => (
+                      <tr key={e.id}>
+                        <td style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{e.date}</td>
+                        <td style={{ fontSize: 13 }}>{e.description}</td>
+                        <td style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>{e.debitLedger}</td>
+                        <td style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>{e.creditLedger}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(e.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </TblWrap>
+                <Pagination total={glFiltered.length} page={glPage} pageSize={PAGE_SIZE} onChange={setGlPage} />
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── CHART OF ACCOUNTS ────────────────────────────────────── */}
       {tab === 'coa' && (
@@ -472,7 +540,7 @@ export default function AccountsPage() {
             {[
               { label: 'Total orders recorded', value: String(db.orders.length) },
               { label: 'Products in system', value: String(db.products.length) },
-              { label: 'Active customers', value: String(db.customers.filter(c => c.active !== false).length) },
+              { label: 'Active customers', value: String(db.customers.filter(c => c.status !== 'inactive').length) },
               { label: 'Vouchers (manual)', value: String(vouchers.length) },
             ].map((r, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
