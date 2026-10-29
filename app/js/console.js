@@ -54,11 +54,19 @@ function itemForm(it){
     field('Price','price',it.price,{type:'number',step:'0.01',min:0})+field('Cost (optional)','cost',it.cost,{type:'number',step:'0.01',min:0})+
     select('Preferred supplier','supplierId',[['','— none —']].concat(DB.suppliers.map(s=>[s.id,s.name])),it.supplierId||'')+field('Supplier lead time (days)','leadDays',it.leadDays!=null?it.leadDays:2,{type:'number',min:0})+itemExtraFields(it)+'</div>'+
     '<div class="chks">'+check('VAT applies','tax',it.tax)+check('Track stock','track',it.track)+check('Active (sellable)','active',it.active)+itemExtraChecks(it)+'</div>'+
-    '<div style="margin-top:12px"><label style="display:block;font-size:.9em;font-weight:500;margin-bottom:6px">Product image (optional)</label>'+
-    '<div style="display:flex;gap:8px;margin-bottom:8px"><input name="image" type="url" placeholder="https://... or click auto-fetch" value="'+esc(it.image||'')+'" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.88em" id="itemImgUrl">'+
-    '<button type="button" class="btn ghost sm" data-act="item-fetch-image" style="white-space:nowrap">&#128247; Auto-fetch</button>'+
-    '<button type="button" class="btn ghost sm" data-act="item-fetch-image" data-diff="1" style="white-space:nowrap">↻ Different</button></div>'+
-    '<div id="itemImgPreview" style="text-align:left">'+(it.image?'<img src="'+esc(it.image)+'" alt="Product image" style="max-height:100px;max-width:160px;border-radius:6px;object-fit:cover;border:1px solid var(--border)" onerror="this.style.display=\'none\'">':'')+'</div></div>';
+    '<div style="margin-top:16px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+    '<label style="font-size:.9em;font-weight:500;margin:0">Product Image</label>'+
+    '<span style="font-size:.78em;color:var(--accent,#3b82f6)">✨ Auto-fetched from Unsplash</span>'+
+    '</div>'+
+    '<div style="display:flex;gap:12px;align-items:flex-start">'+
+    '<div id="itemImgPreview" style="flex-shrink:0;width:80px;height:80px;border-radius:8px;border:1px dashed var(--border);background:var(--bg2,rgba(128,128,128,.08));display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;cursor:pointer" title="Click to fetch image">'+
+    (it.image?'<img src="'+esc(it.image)+'" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<span style="font-size:1.6em">📷</span><span style="font-size:.62em;color:var(--muted);text-align:center;line-height:1.2">Type name</span>')+'</div>'+
+    '<div style="flex:1">'+
+    '<button type="button" class="btn primary sm" data-act="item-fetch-image" data-diff="1" style="width:100%;margin-bottom:8px">&#x21BB; Get different image</button>'+
+    '<label style="font-size:.82em;color:var(--muted);display:block;margin-bottom:4px">Or paste image URL</label>'+
+    '<input name="image" type="url" placeholder="https://..." value="'+esc(it.image||'')+'" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.88em;box-sizing:border-box" id="itemImgUrl">'+
+    '</div></div></div>';
 }
 function saveItem(id,d){
   const name=d.name.trim(); if(!name){toast('Name is required','err');return false}
@@ -73,7 +81,26 @@ function saveItem(id,d){
 }
 A['item-edit']=d=>{
   const id=d.id, it=id?itemById(id):null;
-  modal({title:it?'Edit item':'New item',body:itemForm(it),wide:true,onOpen:bindArabicAuto,actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>saveItem(id,formData(el))}]});
+  modal({title:it?'Edit item':'New item',body:itemForm(it),wide:true,onOpen:el=>{
+    bindArabicAuto(el);
+    const nameIn=$('[name=name]',el);
+    if(nameIn&&(!DB.settings.features||DB.settings.features.aiImageGen!==false)){
+      let _imgT,_autoImg=!it||!it.image;
+      const imgIn=$('#itemImgUrl',el);
+      if(imgIn)imgIn.addEventListener('input',()=>{_autoImg=!imgIn.value.trim();});
+      nameIn.addEventListener('input',()=>{
+        if(!_autoImg)return;
+        clearTimeout(_imgT);
+        _imgT=setTimeout(()=>{
+          const q=nameIn.value.trim();if(!q)return;
+          const url='https://source.unsplash.com/featured/400x300/?'+encodeURIComponent(q);
+          if(imgIn)imgIn.value=url;
+          const prev=$('#itemImgPreview',el);
+          if(prev)prev.innerHTML='<img src="'+url+'" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">';
+        },900);
+      });
+    }
+  },actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>saveItem(id,formData(el))}]});
 };
 A['item-dup']=d=>{const it=itemById(d.id);if(!it)return;const c=Object.assign({},it,{id:uid('i'),name:it.name+' (copy)',sku:it.sku+'-C',barcode:''});DB.items.push(c);save();toast('Duplicated');render()};
 A['item-toggle']=d=>{const it=itemById(d.id);it.active=!it.active;audit('item.toggle',it.name);save();render()};
@@ -550,15 +577,25 @@ function vSettings(){
       ' <button type="button" data-act="np-del" data-id="'+esc(p.id||'')+'" style="color:var(--danger,#e55);border:0;background:0;cursor:pointer;font-weight:bold;padding:0 2px;font-size:.95em">×</button></span>').join(''):
       '<p class="muted sm" style="margin:0">No presets yet — defaults will be used in the register. Add some above.</p>'})() +
   '</div></section>'+
-  '<section class="card narrow mt"><h2>Kitchen Setup</h2><p class="muted sm">Define kitchen stations for KOT routing. Each station can have a dedicated network printer.</p>'+
-  '<div class="bar" style="margin-bottom:10px"><span class="sp"></span>'+btn('+ Add kitchen','kitchen-edit',null,'primary')+'</div>'+
-  (DB.kitchens&&DB.kitchens.length?tbl([
-    {h:'Name',r:r=>'<b>'+esc(r.name)+'</b> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:'+esc(r.color||'#888')+';vertical-align:middle;margin-left:4px"></span>'},
-    {h:'Printer IP',r:r=>esc(r.printerIp||'—')},{h:'Port',r:r=>esc(r.printerPort||'—')},
-    {h:'Status',r:r=>badge(r.active!==false?'Active':'Disabled',r.active!==false?'ok':'')},
-    {h:'',cls:'r',r:r=>btn('Edit','kitchen-edit',r.id)+' '+btn('Test print','kitchen-test',r.id)+' '+btn('Delete','kitchen-del',r.id,'danger')}
-  ],DB.kitchens,'No kitchens.'):'<p class="muted sm" style="margin:0">No kitchens configured yet. Add a kitchen to enable KOT routing.</p>')+
-  '</section>'+
+  '<section class="card narrow mt"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px"><div><h2 style="margin:0 0 4px">KOT Printing</h2><p class="muted sm" style="margin:0">Send kitchen order tickets to printers on each new sale.</p></div><label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0"><input type="checkbox" data-ch="kot-toggle"'+(f.kotPrinting!==false?' checked':'')+' style="width:18px;height:18px;cursor:pointer"><span style="font-size:.9em;font-weight:600">'+(f.kotPrinting!==false?'On':'Off')+'</span></label></div></section>'+
+  (f.kotPrinting===false?'':(()=>{
+    const kitTab=UIS.kitTab||'kitchens',kp=DB.settings.kotPrinters||4;
+    const kitTabBtns='<div class="tabs" role="tablist">'+[['kitchens','Kitchens'],['cat-printer','Category → Printer'],['product-kitchen','Product → Kitchen']].map(([id,label])=>'<button role="tab" type="button" class="'+(id===kitTab?'on':'')+'" data-act="kit-tab" data-id="'+id+'">'+esc(label)+'</button>').join('')+'</div>';
+    let tc='';
+    if(kitTab==='kitchens'){
+      tc='<div class="bar" style="margin:10px 0 8px"><span class="sp"></span>'+btn('+ Add kitchen','kitchen-edit',null,'primary')+'</div>'+
+        (DB.kitchens&&DB.kitchens.length?tbl([{h:'Name',r:r=>'<b>'+esc(r.name)+'</b> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:'+esc(r.color||'#888')+';vertical-align:middle;margin-left:4px"></span>'},{h:'Printer IP',r:r=>esc(r.printerIp||'—')},{h:'Port',r:r=>esc(r.printerPort||'—')},{h:'Status',r:r=>badge(r.active!==false?'Active':'Disabled',r.active!==false?'ok':'')},{h:'',cls:'r',r:r=>btn('Edit','kitchen-edit',r.id)+' '+btn('Test print','kitchen-test',r.id)+' '+btn('Delete','kitchen-del',r.id,'danger')}],DB.kitchens,'No kitchens yet.'):'<p class="muted sm" style="margin:12px 0 0">No kitchens yet. Add a kitchen station to enable KOT routing.</p>');
+    }else if(kitTab==='cat-printer'){
+      const opts=[['','— None —']].concat(Array.from({length:kp},(_,i)=>[(i+1).toString(),'Printer '+(i+1)]));
+      const rows=DB.categories.length?DB.categories.map(c=>'<tr><td style="padding:8px 10px;vertical-align:middle"><b>'+esc(c.name)+'</b>'+(c.nameAr?'<br><span class="muted sm">'+esc(c.nameAr)+'</span>':'')+'</td><td style="padding:6px 10px">'+select('','ckp_'+c.id,opts,c.kotPrinter?String(c.kotPrinter):'')+'</td></tr>').join(''):'<tr><td colspan="2" style="padding:10px;color:var(--muted)">No categories yet. Add categories in Catalog first.</td></tr>';
+      tc='<p class="muted sm" style="margin:8px 0">Route each product category to its KOT printer. Printer count is set in the Kitchen &amp; KOT field above.</p><table style="width:100%"><thead><tr><th style="text-align:left;padding:4px 10px;color:var(--muted)">Category</th><th style="text-align:left;padding:4px 10px;color:var(--muted)">KOT Printer</th></tr></thead><tbody>'+rows+'</tbody></table>'+(DB.categories.length?'<div class="bar mt">'+btn('Save mapping','cat-kot-save','','primary')+'</div>':'');
+    }else{
+      const ks=DB.kitchens||[],kitOpts=[['','— None —']].concat(ks.map(k=>[k.id,k.name])),items=DB.items.filter(i=>i.active!==false);
+      const rows=items.length?items.map(i=>'<tr><td style="padding:8px 10px"><b>'+esc(i.name)+'</b>'+(i.nameAr?'<br><span class="muted sm">'+esc(i.nameAr)+'</span>':'')+'</td><td style="padding:6px 10px">'+select('','pk_'+i.id,kitOpts,i.kitchenId||'')+'</td></tr>').join(''):'<tr><td colspan="2" style="padding:10px;color:var(--muted)">No active products yet.</td></tr>';
+      tc=(ks.length?'<p class="muted sm" style="margin:8px 0">Assign products to specific kitchen stations for targeted KOT routing.</p>':'<p class="muted sm" style="margin:8px 0">Add kitchen stations first (Kitchens tab), then assign products here.</p>')+'<table style="width:100%"><thead><tr><th style="text-align:left;padding:4px 10px;color:var(--muted)">Product</th><th style="text-align:left;padding:4px 10px;color:var(--muted)">Kitchen</th></tr></thead><tbody>'+rows+'</tbody></table>'+(items.length&&ks.length?'<div class="bar mt">'+btn('Save routing','product-kitchen-save','','primary')+'</div>':'');
+    }
+    return '<section class="card narrow mt" id="kitchenSetup"><h2>Kitchen Setup</h2><p class="muted sm" style="margin-bottom:12px">Configure kitchen sections and KOT printer routing.</p>'+kitTabBtns+tc+'</section>';
+  })())+
   '<section class="card narrow mt"><h2>Table Management</h2><p class="muted sm">Configure dine-in tables shown in the register.</p>'+
   '<div class="bar" style="margin-bottom:10px"><span class="sp"></span>'+btn('+ Add table','table-edit',null,'primary')+'</div>'+
   (DB.tables&&DB.tables.length?tbl([
@@ -567,12 +604,6 @@ function vSettings(){
     {h:'',cls:'r',r:r=>btn('Edit','table-edit',r.id)+' '+btn('Delete','table-del',r.id,'danger')}
   ],DB.tables,'No tables.'):'<p class="muted sm" style="margin:0">No tables configured yet.</p>')+
   '</section>'+
-  (bm('kitchen')&&f.kotPrinting!==false?(()=>{
-    const kp=DB.settings.kotPrinters||4;
-    const opts=[['','— None —']].concat(Array.from({length:kp},(_,i)=>[(i+1).toString(),'Printer '+(i+1)]));
-    const rows=DB.categories.length?DB.categories.map(c=>'<tr><td style="padding:8px 10px;vertical-align:middle"><b>'+esc(c.name)+'</b>'+(c.nameAr?'<br><span class="muted sm">'+esc(c.nameAr)+'</span>':'')+'</td><td style="padding:6px 10px">'+select('','ckp_'+c.id,opts,c.kotPrinter?String(c.kotPrinter):'')+'</td></tr>').join(''):'<tr><td colspan="2" style="padding:10px;color:var(--muted)">No categories yet. Add categories first.</td></tr>';
-    return '<section class="card narrow mt" id="catKotSection"><h2>Category KOT Printer</h2><p class="muted sm">Route each category to its KOT printer. Printer count set in Kitchen &amp; KOT above.</p><table style="width:100%"><thead><tr><th style="text-align:left;padding:4px 10px;color:var(--muted)">Category</th><th style="text-align:left;padding:4px 10px;color:var(--muted)">KOT Printer</th></tr></thead><tbody>'+rows+'</tbody></table><div class="bar mt">'+btn('Save KOT mapping','cat-kot-save')+'</div></section>';
-  })():'')+
   '<section class="card narrow mt"><h2>Data</h2><p class="muted sm">This demo stores data in this browser only. Back up regularly.</p><div class="bar">'+btn('Download backup (JSON)','backup')+btn('Restore from backup','restore')+btn('Load sample sales','demo-data')+btn('Reset to demo data','reset','', 'danger')+'</div></section>'+
   '<section class="card narrow mt"><h2>Audit log</h2>'+tbl([{h:'When',r:r=>fmtDT(r.ts)},{h:'User',r:r=>esc(userName(r.user))},{h:'Action',r:r=>esc(r.action)},{h:'Detail',r:r=>esc(r.detail)}],DB.audit.slice(0,40),'No activity yet.')+'</section>';
 }
@@ -620,6 +651,17 @@ A['kitchen-edit']=d=>{
       audit('kitchen.'+(k?'update':'create'),nm);save();toast('Kitchen saved');render();
     }}]});
 };
+A['kit-tab']=d=>{UIS.kitTab=d.id;render()};
+C['kot-toggle']=el=>{
+  if(!DB.settings.features)DB.settings.features={};
+  DB.settings.features.kotPrinting=el.checked;
+  audit('settings.feature','kotPrinting='+(el.checked?'on':'off'));
+  save();toast('KOT Printing '+(el.checked?'enabled':'disabled'));render();
+};
+A['product-kitchen-save']=()=>{
+  DB.items.forEach(i=>{const el=$('[name="pk_'+i.id+'"]');if(el)i.kitchenId=el.value||undefined});
+  save();toast('Product routing saved');render();
+};
 A['kitchen-del']=d=>confirmBox('Delete this kitchen? KOT routing for its categories will be removed.',()=>{
   DB.kitchens=DB.kitchens.filter(k=>k.id!==d.id);
   DB.categories.forEach(c=>{if(c.kitchenId===d.id)delete c.kitchenId});
@@ -652,7 +694,7 @@ A['item-fetch-image']=d=>{
   const url='https://source.unsplash.com/featured/400x300/?'+encodeURIComponent(query)+r;
   const inp=$('#itemImgUrl');if(inp)inp.value=url;
   const prev=$('#itemImgPreview');
-  if(prev){prev.innerHTML='<img src="'+esc(url)+'" alt="Product image" style="max-height:100px;max-width:160px;border-radius:6px;object-fit:cover;border:1px solid var(--border)" onerror="this.style.display=\'none\'">'}
+  if(prev){prev.innerHTML='<img src="'+esc(url)+'" alt="Product image" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">'}
   toast('Image fetched from Unsplash');
 };
 A['biz-hours-save']=()=>{
