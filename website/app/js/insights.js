@@ -179,8 +179,17 @@ function briefHtml(){
 /* ================= Kitchen display ================= */
 const KDS_WARN=6, KDS_LATE=12; // minutes
 function kdsTickets(){return DB.orders.filter(o=>o.status==='completed'&&o.kds&&o.kds.status!=='done').sort((a,b)=>a.ts-b.ts)}
+A['kds-filt']=d=>{UIS.kdsKitchen=d.id;render()};
 function vKitchen(){
-  const T=kdsTickets(), cols=[['new',tr('New')],['preparing',tr('Preparing')],['ready',tr('Ready')]];
+  const kFilt=UIS.kdsKitchen||'all';
+  const allT=kdsTickets();
+  const T=kFilt==='all'?allT:allT.filter(o=>o.lines.some(l=>{const it=itemById(l.itemId);return it&&it.kitchenId===kFilt}));
+  const cols=[['new',tr('New')],['preparing',tr('Preparing')],['ready',tr('Ready')]];
+  const kitchens=DB.kitchens||[];
+  const filterBar=kitchens.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 16px 4px">'+
+    '<button type="button" class="btn '+(kFilt==='all'?'primary':'ghost')+' sm" data-act="kds-filt" data-id="all">All Kitchens</button>'+
+    kitchens.map(k=>'<button type="button" class="btn '+(kFilt===k.id?'primary':'ghost')+' sm" data-act="kds-filt" data-id="'+esc(k.id)+'" style="border-left:3px solid '+esc(k.color||'#888')+'">'+esc(k.name)+'</button>').join('')+
+  '</div>':'';
   const card=o=>{
     const mins=(now()-o.ts)/60000, cls=o.kds.status==='ready'?'rdy':mins>=KDS_LATE?'late':mins>=KDS_WARN?'warn':'';
     const next=o.kds.status==='new'?['k-start',tr('Start')]:o.kds.status==='preparing'?['k-ready',tr('Ready')]:['k-done',tr('Served')];
@@ -200,6 +209,7 @@ function vKitchen(){
   };
   return '<div class="reg kds"><header class="rh"><div class="rb"><svg class="mk" viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg><strong>Harbinger Kitchen</strong><span class="muted">'+T.length+' open ticket(s)</span></div>'+
     '<div class="ra"><button type="button" class="btn ghost sm" data-act="k-mute">'+(UIS.kmute?'🔇 Sound off':'🔔 Sound on')+'</button><button type="button" class="btn ghost sm" data-act="k-recall">Recall last served</button><button type="button" class="btn ghost sm" data-act="r-exit">'+(can('dashboard')?'Console':'Sign out')+'</button></div></header>'+
+    filterBar+
     '<div class="kcols">'+cols.map(c=>{const list=T.filter(o=>o.kds.status===c[0]);return '<section class="kcol"><h2>'+c[1]+' <span class="count">'+list.length+'</span></h2>'+(list.map(card).join('')||'<div class="empty">—</div>')+'</section>'}).join('')+'</div></div>';
 }
 function kdsAfter(){
