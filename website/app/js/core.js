@@ -80,6 +80,14 @@ function migrate(){ if(DB.settings&&!DB.settings.sellAlways){DB.settings.allowNe
   if(DB.settings.features.businessHours===undefined)DB.settings.features.businessHours=true;
   if(DB.settings.features.kotPrinting===undefined)DB.settings.features.kotPrinting=true;
   if(DB.settings.features.tableManagement===undefined)DB.settings.features.tableManagement=true;
+  if(DB.settings.features.restaurantModule===undefined)DB.settings.features.restaurantModule=false;
+  if(DB.settings.features.aiImageGen===undefined)DB.settings.features.aiImageGen=true;
+  if(DB.settings.features.aiDemandForecast===undefined)DB.settings.features.aiDemandForecast=true;
+  if(DB.settings.features.barcodeGen===undefined)DB.settings.features.barcodeGen=true;
+  if(DB.settings.features.eInvoicing===undefined)DB.settings.features.eInvoicing=true;
+  if(DB.settings.features.shiftManagement===undefined)DB.settings.features.shiftManagement=true;
+  DB.kitchens=DB.kitchens||[];
+  DB.tables=DB.tables||[];
 }
 function audit(action,detail){
   DB.audit.unshift({id:uid('a'),ts:now(),user:ME?ME.id:null,action:action,detail:detail||''});

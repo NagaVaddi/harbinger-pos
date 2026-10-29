@@ -53,7 +53,12 @@ function itemForm(it){
     select('Category','categoryId',DB.categories.map(c=>[c.id,c.name]),it.categoryId)+field('Reorder level','reorder',it.reorder,{type:'number',min:0})+
     field('Price','price',it.price,{type:'number',step:'0.01',min:0})+field('Cost (optional)','cost',it.cost,{type:'number',step:'0.01',min:0})+
     select('Preferred supplier','supplierId',[['','— none —']].concat(DB.suppliers.map(s=>[s.id,s.name])),it.supplierId||'')+field('Supplier lead time (days)','leadDays',it.leadDays!=null?it.leadDays:2,{type:'number',min:0})+itemExtraFields(it)+'</div>'+
-    '<div class="chks">'+check('VAT applies','tax',it.tax)+check('Track stock','track',it.track)+check('Active (sellable)','active',it.active)+itemExtraChecks(it)+'</div>';
+    '<div class="chks">'+check('VAT applies','tax',it.tax)+check('Track stock','track',it.track)+check('Active (sellable)','active',it.active)+itemExtraChecks(it)+'</div>'+
+    '<div style="margin-top:12px"><label style="display:block;font-size:.9em;font-weight:500;margin-bottom:6px">Product image (optional)</label>'+
+    '<div style="display:flex;gap:8px;margin-bottom:8px"><input name="image" type="url" placeholder="https://... or click auto-fetch" value="'+esc(it.image||'')+'" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.88em" id="itemImgUrl">'+
+    '<button type="button" class="btn ghost sm" data-act="item-fetch-image" style="white-space:nowrap">&#128247; Auto-fetch</button>'+
+    '<button type="button" class="btn ghost sm" data-act="item-fetch-image" data-diff="1" style="white-space:nowrap">↻ Different</button></div>'+
+    '<div id="itemImgPreview" style="text-align:left">'+(it.image?'<img src="'+esc(it.image)+'" alt="Product image" style="max-height:100px;max-width:160px;border-radius:6px;object-fit:cover;border:1px solid var(--border)" onerror="this.style.display=\'none\'">':'')+'</div></div>';
 }
 function saveItem(id,d){
   const name=d.name.trim(); if(!name){toast('Name is required','err');return false}
@@ -61,7 +66,7 @@ function saveItem(id,d){
   const sku=d.sku.trim()||('SKU'+String(DB.items.length+1).padStart(3,'0')), bc=d.barcode.trim();
   if(DB.items.some(x=>x.id!==id&&x.sku.toLowerCase()===sku.toLowerCase())){toast('SKU already exists','err');return false}
   if(bc&&DB.items.some(x=>x.id!==id&&x.barcode===bc)){toast('Barcode already exists','err');return false}
-  const rec={name:name,nameAr:d.nameAr.trim(),sku:sku,barcode:bc,categoryId:d.categoryId,price:price,cost:cost,tax:!!d.tax,track:!!d.track,reorder:Math.max(0,num(d.reorder)),active:!!d.active,supplierId:d.supplierId||'',leadDays:d.leadDays===''?2:Math.max(0,Math.round(num(d.leadDays)))};
+  const rec={name:name,nameAr:d.nameAr.trim(),sku:sku,barcode:bc,categoryId:d.categoryId,price:price,cost:cost,tax:!!d.tax,track:!!d.track,reorder:Math.max(0,num(d.reorder)),active:!!d.active,supplierId:d.supplierId||'',leadDays:d.leadDays===''?2:Math.max(0,Math.round(num(d.leadDays))),image:(d.image||'').trim()||undefined};
   Object.assign(rec,itemExtra(d));
   if(id){Object.assign(itemById(id),rec);audit('item.update',name)}else{rec.id=uid('i');DB.items.push(rec);audit('item.create',name)}
   save();toast('Item saved');render();
@@ -457,12 +462,14 @@ function vSettings(){
     '<section class="card narrow"><p class="warn-t">Only administrators can access the Control Panel.</p><p class="muted">Ask your admin to update settings for you.</p></section>';
   const s=DB.settings;
   const f=s.features||{};
-  const featToggle=(key,label,desc)=>{
-    const on=f[key]!==false;
-    return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--border)">'+
-      '<div><b>'+esc(label)+'</b><p class="muted sm" style="margin:2px 0 0">'+esc(desc)+'</p></div>'+
-      '<label style="flex-shrink:0;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-ch="feat-toggle" data-id="'+esc(key)+'"'+(on?' checked':'')+' style="width:16px;height:16px;cursor:pointer" aria-label="'+esc(label)+'"> <span class="muted sm">'+(on?'On':'Off')+'</span></label></div>';
-  };
+  const flagRow=(key,label,desc)=>{const on=f[key]!==false;return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--border)"><div><b style="font-size:.9em">'+esc(label)+'</b><p class="muted sm" style="margin:2px 0 0">'+esc(desc)+'</p></div><label style="flex-shrink:0;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="feat-cb" id="feat_'+esc(key)+'" data-feat="'+esc(key)+'"'+(on?' checked':'')+' style="width:16px;height:16px;cursor:pointer" aria-label="'+esc(label)+'"></label></div>';};
+  const FEAT_GROUPS=[
+    {g:'RESTAURANT',flags:[['kotPrinting','KOT Printing','Send kitchen order tickets to network printers on each new sale.'],['tableManagement','Table Management','Show dine-in table input and kitchen display screen in the register.']]},
+    {g:'AI',flags:[['aiImageGen','AI Image Generation','Auto-fetch product images when adding items.'],['aiDemandForecast','AI Demand Forecast','Predict reorder needs using sales velocity.']]},
+    {g:'HARDWARE',flags:[['barcodeGen','Barcode Generation','Print barcodes from the stock room using a connected label printer.']]},
+    {g:'COMPLIANCE',flags:[['eInvoicing','E-Invoicing','Generate QR-code invoices for tax compliance (UAE/SA/Bahrain).'],['businessHours','Business Hours Control','Show an auto-close popup when the register exceeds its configured closing time.']]},
+    {g:'OPERATIONS',flags:[['shiftManagement','Shift Management','Track opening and closing cash counts per shift.']]},
+  ];
   const ITPL=[
     {id:'restaurant',icon:'🍔',name:'Restaurant / Café',feat:['Tables & KOT','Kitchen routing','Menu categories']},
     {id:'supermarket',icon:'🛒',name:'Grocery / Supermarket',feat:['Barcode scanning','Weighted items','Loyalty points']},
@@ -515,11 +522,9 @@ function vSettings(){
     '</section>';
   return head('Control Panel','Business profile, tax, loyalty and data')+
   '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:8px">'+industryHtml+bizHoursHtml+'</div>'+
-  '<section class="card narrow mt"><h2>System Modules</h2><p class="muted sm" style="margin-bottom:12px">Enable or disable features for this business. Changes apply immediately.</p>'+
-  featToggle('businessHours','Enable Business Hours','Show an auto-close popup when the register exceeds its configured closing time.')+
-  featToggle('kotPrinting','Enable KOT Printers','Send kitchen order tickets to network printers on each new sale.')+
-  featToggle('tableManagement','Enable Table Management','Show dine-in type, table number input, and the kitchen display in the register.')+
-  '</section>'+
+  '<section class="card narrow mt"><h2>Feature Flags</h2><p class="muted sm" style="margin-bottom:16px">Enable or disable features for this business. Changes take effect after saving.</p>'+
+  FEAT_GROUPS.map(g=>'<div style="margin-bottom:14px"><div style="font-size:.7em;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:4px 0 2px">'+esc(g.g)+'</div>'+g.flags.map(([k,l,d])=>flagRow(k,l,d)).join('')+'</div>').join('')+
+  '<div class="bar mt"><button type="button" class="btn primary" data-act="feat-save">&#128190; Save features</button></div></section>'+
   '<form id="setForm" class="card narrow" autocomplete="off"><h2>Business</h2><div class="form2">'+field('Business name','business',s.business)+field('Tax registration no. (TRN)','trn',s.trn)+field('Address','address',s.address)+field('Phone','phone',s.phone)+
   field('Currency code','currency',s.currency,{max:4})+field('Receipt footer','footer',s.footer)+field('Country dialling code (WhatsApp)','countryCode',s.countryCode||'971',{max:4})+
   field('Minimum ticket margin % (0 = off)','minMarginPct',s.minMarginPct!=null?s.minMarginPct:15,{type:'number',min:0,max:100})+'</div>'+
@@ -545,6 +550,23 @@ function vSettings(){
       ' <button type="button" data-act="np-del" data-id="'+esc(p.id||'')+'" style="color:var(--danger,#e55);border:0;background:0;cursor:pointer;font-weight:bold;padding:0 2px;font-size:.95em">×</button></span>').join(''):
       '<p class="muted sm" style="margin:0">No presets yet — defaults will be used in the register. Add some above.</p>'})() +
   '</div></section>'+
+  '<section class="card narrow mt"><h2>Kitchen Setup</h2><p class="muted sm">Define kitchen stations for KOT routing. Each station can have a dedicated network printer.</p>'+
+  '<div class="bar" style="margin-bottom:10px"><span class="sp"></span>'+btn('+ Add kitchen','kitchen-edit',null,'primary')+'</div>'+
+  (DB.kitchens&&DB.kitchens.length?tbl([
+    {h:'Name',r:r=>'<b>'+esc(r.name)+'</b> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:'+esc(r.color||'#888')+';vertical-align:middle;margin-left:4px"></span>'},
+    {h:'Printer IP',r:r=>esc(r.printerIp||'—')},{h:'Port',r:r=>esc(r.printerPort||'—')},
+    {h:'Status',r:r=>badge(r.active!==false?'Active':'Disabled',r.active!==false?'ok':'')},
+    {h:'',cls:'r',r:r=>btn('Edit','kitchen-edit',r.id)+' '+btn('Test print','kitchen-test',r.id)+' '+btn('Delete','kitchen-del',r.id,'danger')}
+  ],DB.kitchens,'No kitchens.'):'<p class="muted sm" style="margin:0">No kitchens configured yet. Add a kitchen to enable KOT routing.</p>')+
+  '</section>'+
+  '<section class="card narrow mt"><h2>Table Management</h2><p class="muted sm">Configure dine-in tables shown in the register.</p>'+
+  '<div class="bar" style="margin-bottom:10px"><span class="sp"></span>'+btn('+ Add table','table-edit',null,'primary')+'</div>'+
+  (DB.tables&&DB.tables.length?tbl([
+    {h:'Table',r:r=>'<b>'+esc(r.number)+'</b>'+(r.name?' · '+esc(r.name):'')},
+    {h:'Seats',cls:'r',r:r=>esc(r.seats||'—')},{h:'Section',r:r=>esc(r.section||'—')},
+    {h:'',cls:'r',r:r=>btn('Edit','table-edit',r.id)+' '+btn('Delete','table-del',r.id,'danger')}
+  ],DB.tables,'No tables.'):'<p class="muted sm" style="margin:0">No tables configured yet.</p>')+
+  '</section>'+
   (bm('kitchen')&&f.kotPrinting!==false?(()=>{
     const kp=DB.settings.kotPrinters||4;
     const opts=[['','— None —']].concat(Array.from({length:kp},(_,i)=>[(i+1).toString(),'Printer '+(i+1)]));
@@ -567,16 +589,71 @@ function bindSettings(){
   });
 }
 C['feat-toggle']=el=>{
-  if(!DB.settings.features)DB.settings.features={businessHours:true,kotPrinting:true,tableManagement:true};
-  const key=el.dataset.id;
-  DB.settings.features[key]=el.checked;
-  audit('settings.feature',key+'='+(el.checked?'on':'off'));save();toast('Module '+(el.checked?'enabled':'disabled'));render();
+  if(!DB.settings.features)DB.settings.features={};
+  DB.settings.features[el.dataset.id]=el.checked;
+  audit('settings.feature',el.dataset.id+'='+(el.checked?'on':'off'));save();toast('Module '+(el.checked?'enabled':'disabled'));render();
+};
+A['feat-save']=()=>{
+  if(!DB.settings.features)DB.settings.features={};
+  $$('.feat-cb').forEach(cb=>{if(cb.dataset.feat)DB.settings.features[cb.dataset.feat]=cb.checked});
+  audit('settings.features','save');save();toast('Features saved');render();
 };
 A['biz-load-tpl']=d=>{
   const t=d.id;
   if(typeof BIZ!=='undefined'&&BIZ[t]){A['biz-switch'](d);return}
   const names={garage:'Garage / Workshop',tyre:'Tyre Shop',tailor:'Tailor / Alteration',laundry:'Laundry / Services',butcher:'Butcher / Meat',wholesale:'Wholesale / B2B',logistics:'Logistics / Delivery',ecommerce:'E-Commerce / Online'};
   confirmBox('Switch to "'+esc(names[t]||t)+'"? This changes the business type. Download a backup first if needed.',()=>{DB.settings.businessType=t;audit('settings.biz-type',t);save();toast((names[t]||t)+' template loaded');render()},'Switch');
+};
+const KITCHEN_COLORS=['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#64748b'];
+A['kitchen-edit']=d=>{
+  const k=d.id?byId(DB.kitchens,d.id):null;
+  const colorPicker='<div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 14px">'+
+    KITCHEN_COLORS.map(c=>'<label title="'+esc(c)+'" style="cursor:pointer;position:relative"><input type="radio" name="color" value="'+esc(c)+'"'+((k?k.color===c:c===KITCHEN_COLORS[0])?' checked':'')+' style="position:absolute;opacity:0;width:0;height:0"><span style="display:block;width:30px;height:30px;border-radius:50%;background:'+esc(c)+';box-sizing:border-box;border:'+(((k?k.color===c:c===KITCHEN_COLORS[0]))?'3px solid var(--text)':'3px solid transparent')+'"></span></label>').join('')+'</div>';
+  modal({title:k?'Edit kitchen':'Add kitchen',body:
+    '<div class="form2">'+field('Kitchen name','name',k&&k.name,{req:1,af:1})+'<span></span></div>'+
+    '<label style="display:block;font-size:.9em;font-weight:500;margin-bottom:2px">Station color</label>'+colorPicker+
+    '<div class="form2">'+field('Printer IP (optional)','printerIp',(k&&k.printerIp)||'')+field('Printer port','printerPort',(k&&k.printerPort)||9100,{type:'number',min:1,max:65535})+'</div>',
+    actions:[{label:'Cancel'},{label:k?'Save':'Add kitchen',cls:'primary',fn:el=>{
+      const fd=formData(el),nm=fd.name.trim();if(!nm){toast('Name required','err');return false}
+      const rec={name:nm,color:fd.color||KITCHEN_COLORS[0],printerIp:(fd.printerIp||'').trim(),printerPort:parseInt(fd.printerPort)||9100,active:true};
+      if(k){Object.assign(k,rec)}else{DB.kitchens.push(Object.assign({id:uid('ki')},rec))}
+      audit('kitchen.'+(k?'update':'create'),nm);save();toast('Kitchen saved');render();
+    }}]});
+};
+A['kitchen-del']=d=>confirmBox('Delete this kitchen? KOT routing for its categories will be removed.',()=>{
+  DB.kitchens=DB.kitchens.filter(k=>k.id!==d.id);
+  DB.categories.forEach(c=>{if(c.kitchenId===d.id)delete c.kitchenId});
+  audit('kitchen.del',d.id);save();render();
+},'Delete');
+A['kitchen-test']=d=>{
+  const k=byId(DB.kitchens,d.id);if(!k)return;
+  if(!k.printerIp){toast('No printer IP configured for '+k.name,'err');return}
+  toast('Test print sent to '+k.printerIp+':'+k.printerPort+' ('+k.name+') — check the printer');
+};
+A['table-edit']=d=>{
+  const t=d.id?byId(DB.tables,d.id):null;
+  modal({title:t?'Edit table':'Add table',body:
+    '<div class="form2">'+field('Table number','number',t&&t.number,{req:1,af:1,placeholder:'e.g. 1 or T-01'})+field('Display name (optional)','name',t&&t.name,{placeholder:'e.g. Window table'})+
+    field('Seats','seats',(t&&t.seats)||4,{type:'number',min:1,max:50})+field('Section (optional)','section',t&&t.section,{placeholder:'e.g. Indoor, Terrace'})+'</div>',
+    actions:[{label:'Cancel'},{label:t?'Save':'Add table',cls:'primary',fn:el=>{
+      const fd=formData(el),num=(fd.number||'').trim();if(!num){toast('Table number required','err');return false}
+      if(!t&&DB.tables.some(x=>x.number===num)){toast('Table number already exists','err');return false}
+      const rec={number:num,name:(fd.name||'').trim(),seats:Math.max(1,parseInt(fd.seats)||4),section:(fd.section||'').trim(),status:'available'};
+      if(t){Object.assign(t,rec)}else{DB.tables.push(Object.assign({id:uid('tb')},rec))}
+      audit('table.'+(t?'update':'create'),num);save();toast('Table saved');render();
+    }}]});
+};
+A['table-del']=d=>confirmBox('Delete this table?',()=>{DB.tables=DB.tables.filter(t=>t.id!==d.id);audit('table.del',d.id);save();render()},'Delete');
+A['item-fetch-image']=d=>{
+  const nameEl=$('#modal [name=name]')||$('[name=name]');
+  const query=((nameEl&&nameEl.value)||'').trim();
+  if(!query){toast('Enter a product name first','err');return}
+  const r=d.diff?('&r='+Date.now()):'';
+  const url='https://source.unsplash.com/featured/400x300/?'+encodeURIComponent(query)+r;
+  const inp=$('#itemImgUrl');if(inp)inp.value=url;
+  const prev=$('#itemImgPreview');
+  if(prev){prev.innerHTML='<img src="'+esc(url)+'" alt="Product image" style="max-height:100px;max-width:160px;border-radius:6px;object-fit:cover;border:1px solid var(--border)" onerror="this.style.display=\'none\'">'}
+  toast('Image fetched from Unsplash');
 };
 A['biz-hours-save']=()=>{
   const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
