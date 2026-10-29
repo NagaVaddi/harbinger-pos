@@ -71,6 +71,7 @@ function migrate(){ if(DB.settings&&!DB.settings.sellAlways){DB.settings.allowNe
     {day:'Wednesday',enabled:true,open:'08:00',close:'22:00'},{day:'Thursday',enabled:true,open:'08:00',close:'22:00'},
     {day:'Friday',enabled:true,open:'08:00',close:'23:00'},{day:'Saturday',enabled:true,open:'09:00',close:'23:00'},
     {day:'Sunday',enabled:true,open:'09:00',close:'22:00'}];
+  if(DB.settings.autoCloseShift===undefined)DB.settings.autoCloseShift=false;
   if(DB.settings.notePresets===undefined)DB.settings.notePresets=null;
   if(!DB.settings.features)DB.settings.features={businessHours:true,kotPrinting:true,tableManagement:true};
   if(DB.settings.features.businessHours===undefined)DB.settings.features.businessHours=true;

@@ -257,7 +257,10 @@ function checkBusinessHours(){
   const [ch,cm]=(todayBH.close||'22:00').split(':').map(Number);
   const closeMin=ch*60+cm;
   if(hm>=closeMin){
-    if(!_bhAlerted||_bhAlertDay!==dayIdx){_bhAlerted=true;_bhAlertDay=dayIdx;showBHClose();}
+    if(!_bhAlerted||_bhAlertDay!==dayIdx){
+      _bhAlerted=true;_bhAlertDay=dayIdx;
+      if(DB.settings.autoCloseShift)A['r-close']();else showBHClose();
+    }
   }else{_bhAlerted=false;}
 }
 function showBHClose(){
