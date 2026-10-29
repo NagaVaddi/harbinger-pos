@@ -65,7 +65,22 @@ function migrate(){ if(DB.settings&&!DB.settings.sellAlways){DB.settings.allowNe
   if(!DB.settings.businessType)DB.settings.businessType='restaurant';
   if(typeof ensureAccounts==='function')ensureAccounts();
   if(typeof ensureEinv==='function')ensureEinv();
-  DB.online=DB.online||[]; DB.itemMap=DB.itemMap||{}; DB.channels=DB.channels||{}; }
+  DB.online=DB.online||[]; DB.itemMap=DB.itemMap||{}; DB.channels=DB.channels||{}; if(DB.settings.kotPrinters==null)DB.settings.kotPrinters=0;
+  if(!DB.settings.businessHours)DB.settings.businessHours=[
+    {day:'Monday',enabled:true,open:'08:00',close:'22:00'},{day:'Tuesday',enabled:true,open:'08:00',close:'22:00'},
+    {day:'Wednesday',enabled:true,open:'08:00',close:'22:00'},{day:'Thursday',enabled:true,open:'08:00',close:'22:00'},
+    {day:'Friday',enabled:true,open:'08:00',close:'23:00'},{day:'Saturday',enabled:true,open:'09:00',close:'23:00'},
+    {day:'Sunday',enabled:true,open:'09:00',close:'22:00'}];
+  if(DB.settings.autoCloseShift===undefined)DB.settings.autoCloseShift=false;
+  if(DB.settings.notePresets===undefined)DB.settings.notePresets=null;
+  if(Array.isArray(DB.settings.notePresets)&&DB.settings.notePresets.length&&typeof DB.settings.notePresets[0]==='string'){
+    DB.settings.notePresets=DB.settings.notePresets.map(t=>({id:uid('np'),text:t,active:true}));
+  }
+  if(!DB.settings.features)DB.settings.features={businessHours:true,kotPrinting:true,tableManagement:true};
+  if(DB.settings.features.businessHours===undefined)DB.settings.features.businessHours=true;
+  if(DB.settings.features.kotPrinting===undefined)DB.settings.features.kotPrinting=true;
+  if(DB.settings.features.tableManagement===undefined)DB.settings.features.tableManagement=true;
+}
 function audit(action,detail){
   DB.audit.unshift({id:uid('a'),ts:now(),user:ME?ME.id:null,action:action,detail:detail||''});
   if(DB.audit.length>1500)DB.audit.length=1500;

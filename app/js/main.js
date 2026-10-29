@@ -54,7 +54,7 @@ function shell(route,content){
     '<div class="su"><span>'+esc(ME.name)+'</span><small>'+esc(ME.role)+'</small></div></aside><div class="scrim" data-act="nav-toggle"></div>'+
     '<div class="main"><header class="top"><button type="button" class="menu" data-act="nav-toggle" aria-label="Menu">☰</button><span class="biz">'+esc(DB.settings.business)+'</span><span class="sp"></span>'+
     '<button type="button" class="btn ghost sm" data-act="palette" aria-label="Search and commands">'+tr('Search')+' <kbd class="kb">Ctrl K</kbd></button>'+
-    (can('kitchen')&&bm('kitchen')?'<button type="button" class="btn ghost sm" data-act="go-kitchen">'+tr('Kitchen display')+'</button>':'')+
+    (can('kitchen')&&bm('kitchen')&&!(DB.settings.features&&DB.settings.features.tableManagement===false)?'<button type="button" class="btn ghost sm" data-act="go-kitchen">'+tr('Kitchen display')+'</button>':'')+
     (can('register')?'<button type="button" class="btn primary sm" data-act="go-register">'+tr('Open POS')+'</button>':'')+
     '<button type="button" class="btn ghost sm" data-act="mode-toggle" aria-label="Toggle light and dark mode">◐</button><button type="button" class="btn ghost sm" data-act="lang-toggle" aria-label="Language">'+(LANG==='ar'?'EN':'ع')+'</button><button type="button" class="btn ghost sm" data-act="logout">'+tr('Sign out')+'</button></header>'+
     '<main class="view" id="view">'+content+'</main></div></div>';

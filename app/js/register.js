@@ -36,7 +36,9 @@ function vRegister(){
   const lines=T.lines.map(l=>'<div class="ln"><div class="ln-t"><b>'+esc(dn(l.it))+'</b><span>'+fmt(l.total)+'</span></div>'+lineMeta(l)+'<div class="ln-c">'+lineQtyUi(l)+
     '<button type="button" class="lnk" data-act="r-note" data-id="'+l.key+'">'+(l.note?'✎ '+esc(l.note):tr('+ note'))+'</button><button type="button" class="lnk bad" data-act="r-del" data-id="'+l.key+'" aria-label="Remove">✕</button></div></div>').join('')||'<div class="empty">'+tr('Tap an item or scan a barcode to start.')+'</div>';
   const disc=T.discounts.map(d=>'<div class="tr disc"><span>'+esc(d.label)+'</span><span>−'+fmt(d.amount)+'</span></div>').join('');
-  const types=biz().types.map(t=>[t,typeLabel(t)]).map(t=>'<button type="button" class="seg'+(R.type===t[0]?' on':'')+'" data-act="r-type" data-id="'+t[0]+'">'+t[1]+'</button>').join('');
+  const tableEnabled=!(DB.settings.features&&DB.settings.features.tableManagement===false);
+  if(!tableEnabled&&R.type==='dine-in')R.type='takeaway';
+  const types=biz().types.filter(t=>tableEnabled||t!=='dine-in').map(t=>[t,typeLabel(t)]).map(t=>'<button type="button" class="seg'+(R.type===t[0]?' on':'')+'" data-act="r-type" data-id="'+t[0]+'">'+t[1]+'</button>').join('');
   const canPay=R.cart.length>0;
   return '<div class="reg">'+
   '<header class="rh"><div class="rb"><svg class="mk" viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg><strong>'+tr('Harbinger Register')+'</strong><span class="muted">'+esc(ct.name)+' · '+esc(ME.name)+'</span></div>'+
@@ -45,7 +47,7 @@ function vRegister(){
   '<div class="rbody"><section class="rl"><div class="rs"><input id="rq" type="search" placeholder="'+esc(tr('Search item or scan barcode  (F2)'))+'" value="'+esc(R.q)+'" data-in="rq" autocomplete="off" aria-label="Search items or scan barcode"></div>'+
   '<div class="chips" role="tablist" aria-label="Categories">'+chips+'</div><div class="tiles" role="list">'+tiles+'</div></section>'+
   '<aside class="rt" aria-label="Current ticket"><div class="segs">'+types+'</div>'+
-  (bm('tables')&&R.type==='dine-in'?'<input class="tbl-in" id="rtable" placeholder="'+esc(tr('Table / seat'))+'" maxlength="12" value="'+esc(R.table)+'" data-in="rtable" aria-label="Table">':'')+
+  (tableEnabled&&bm('tables')&&R.type==='dine-in'?'<input class="tbl-in" id="rtable" placeholder="'+esc(tr('Table / seat'))+'" maxlength="12" value="'+esc(R.table)+'" data-in="rtable" aria-label="Table">':'')+
   '<div class="gl">'+(cu?'<span class="gchip"><b>'+esc(cu.name)+'</b> · '+(bm('insurance')&&cu.insurer?esc(cu.insurer)+' · co-pay '+(cu.copay||0)+'%':cu.points+' pts')+' <button type="button" data-act="r-guest-x" aria-label="Remove guest">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-guest">'+tr('+ Guest')+'</button>')+'</div>'+
   (bm('vehicle')?'<div class="gl">'+(R.vehicle?'<span class="gchip">🚗 <b>'+esc(R.vehicle.plate)+'</b> '+esc((R.vehicle.make||'')+' '+(R.vehicle.model||''))+' <button type="button" data-act="r-vehicle-x" aria-label="Remove vehicle">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-vehicle">+ Vehicle</button>')+'</div>':'')+(R.type==='delivery'&&DB.drivers.some(x=>x.active)?'<div class="gl">'+(R.driverId?'<span class="gchip">🛵 <b>'+esc((byId(DB.drivers,R.driverId)||{}).name||'')+'</b> <button type="button" data-act="r-driver-x" aria-label="Remove driver">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-driver">+ Driver</button>')+'</div>':'')+(R.jobId?'<div class="gl"><span class="gchip">Job <b>'+esc((byId(DB.jobs,R.jobId)||{}).no||'')+'</b></span></div>':'')+'<div class="lines">'+lines+'</div>'+
   '<div class="sums"><div class="tr"><span>'+tr('Subtotal')+'</span><span>'+fmt(T.subtotal)+'</span></div>'+disc+
@@ -84,7 +86,24 @@ A['r-inc']=d=>{const l=byId2(d.id);if(!l)return;const it=itemById(l.itemId);if(s
 A['r-dec']=d=>{const l=byId2(d.id);if(!l)return;l.qty--;if(l.qty<=0)R.cart=R.cart.filter(x=>x!==l);render()};
 A['r-del']=d=>{R.cart=R.cart.filter(x=>x.key!==d.id);render()};
 const byId2=k=>R.cart.find(x=>x.key===k);
-A['r-note']=d=>{const l=byId2(d.id);modal({title:'Item note',body:field('Note (e.g. no onion)','note',l.note,{af:1,max:100})+notePresetsHtml(),onOpen:bindNotePresets,enter:el=>$('.btn.primary',el).click(),actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{l.note=formData(el).note.trim();render()}}]})};
+const DEFAULT_NOTE_PRESETS=['No onion','No cheese','No sauce','Extra spicy','Well done','Medium','No ice','Extra portion','On the side','No salt','No sugar','Extra sauce'];
+function notePresetsHtml(){
+  const raw=DB.settings.notePresets&&DB.settings.notePresets.length?DB.settings.notePresets:null;
+  let strs;
+  if(raw){
+    if(typeof raw[0]==='string')strs=raw;
+    else strs=raw.filter(p=>p.active!==false).map(p=>p.text||p);
+  }
+  if(!strs||!strs.length)strs=DEFAULT_NOTE_PRESETS;
+  return '<div style="margin-top:10px"><p class="muted sm" style="margin:0 0 6px">Quick modifiers:</p><div style="display:flex;flex-wrap:wrap;gap:6px">'+strs.map(p=>'<button type="button" class="btn ghost sm note-pr" data-p="'+esc(p)+'">'+esc(p)+'</button>').join('')+'</div></div>';
+}
+function bindNotePresets(el){
+  el.querySelectorAll('.note-pr').forEach(b=>b.addEventListener('click',()=>{
+    const inp=el.querySelector('[name="note"]');if(!inp)return;
+    const cur=inp.value.trim();inp.value=cur?cur+', '+b.dataset.p:b.dataset.p;inp.focus();
+  }));
+}
+A['r-note']=d=>{const l=byId2(d.id);modal({title:'Item note',body:field('Note','note',l.note,{af:1,max:100})+notePresetsHtml(),onOpen:bindNotePresets,enter:el=>$('.btn.primary',el).click(),actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>{l.note=formData(el).note.trim();render()}}]})};
 A['r-cat']=d=>{R.cat=d.id;render()};
 A['r-type']=d=>{R.type=d.id;if(d.id!=='dine-in')R.table='';render()};
 I.rq=el=>{R.q=el.value;render()};
@@ -211,12 +230,14 @@ function finalizeOrder(S,sess,payments,change,extra){
   const no=ct.code+"-"+String(DB.seq.order).padStart(5,"0");
   const lines=T.lines.map(l=>{
     const allocs=l.it.track?deductStock(l.it.id,l.qty,"Sale "+no):[];
-    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',serial:l.serial||null,allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0};
+    const cat=byId(DB.categories,l.it.categoryId);
+    const kotEnabled=!(DB.settings.features&&DB.settings.features.kotPrinting===false);
+    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',serial:l.serial||null,allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0,kotPrinter:kotEnabled?(cat&&cat.kotPrinter)||null:null};
   });
   const cu=byId(DB.customers,S.customerId), earned=cu?Math.floor(T.total*DB.settings.pointsPerAed):0;
   const usedCode=T.discounts.some(d=>d.kind==="code")?S.code:null;
   const order=Object.assign({id:uid("o"),no:no,ts:now(),counterId:sess.counterId,sessionId:sess.id,userId:ME.id,type:S.type,table:S.type==="dine-in"?S.table:"",customerId:cu?cu.id:null,lines:lines,
-    subtotal:T.subtotal,discounts:T.discounts,discountTotal:T.discountTotal,charges:T.charges,chargeTotal:T.chargeTotal,vat:T.vat,total:T.total,payments:payments,change:change,status:"completed",vehicle:S.vehicle||null,jobId:S.jobId||null,driverId:S.type==="delivery"?(S.driverId||null):null,pointsEarned:earned,pointsRedeemed:T.redeemed,code:usedCode,kds:bm("kitchen")?{status:"new",ts:now()}:undefined,insurer:((payments.find(p=>p.method==="insurance"))||{}).insurer||"",marginPct:Math.round(ticketMargin(T).pct*10)/10},extra||{});
+    subtotal:T.subtotal,discounts:T.discounts,discountTotal:T.discountTotal,charges:T.charges,chargeTotal:T.chargeTotal,vat:T.vat,total:T.total,payments:payments,change:change,status:"completed",vehicle:S.vehicle||null,jobId:S.jobId||null,driverId:S.type==="delivery"?(S.driverId||null):null,pointsEarned:earned,pointsRedeemed:T.redeemed,code:usedCode,kds:(bm("kitchen")&&!(DB.settings.features&&DB.settings.features.kotPrinting===false))?{status:"new",ts:now()}:undefined,insurer:((payments.find(p=>p.method==="insurance"))||{}).insurer||"",marginPct:Math.round(ticketMargin(T).pct*10)/10},extra||{});
   if(cu){cu.points=Math.max(0,cu.points-T.redeemed+earned);cu.visits++;cu.spend=r2(cu.spend+T.total)}
   if(usedCode){const c=byId(DB.codes,usedCode);if(c)c.used++}
   DB.orders.push(order);if(typeof logRx==="function")logRx(order);postSale(order);if(typeof einvStamp==="function")einvStamp(order,"invoice");if(bm("serial"))recordWarranty(order);if(S.jobId)finishJob(order,S.jobId);if(S.vehicle&&cu)rememberVehicle(cu.id,S.vehicle);audit("sale",no+" "+money(T.total));save();
@@ -228,6 +249,43 @@ function completeSale(payments,change){
   regReset();render();
   showReceipt(order,[{label:"New order",cls:"primary"}]);
 }
+
+/* ---------- business hours auto-close ---------- */
+let _bhAlerted=false,_bhAlertDay=-1;
+function checkBusinessHours(){
+  if(!curSession())return;
+  if(DB.settings.features&&DB.settings.features.businessHours===false)return;
+  const bh=DB.settings.businessHours;if(!bh||!bh.length)return;
+  const d=new Date(),jsDay=d.getDay(); // 0=Sun,1=Mon,...6=Sat
+  const dayIdx=[6,0,1,2,3,4,5][jsDay]; // map to our array Mon=0...Sun=6
+  const todayBH=bh[dayIdx];if(!todayBH||!todayBH.enabled)return;
+  const hm=d.getHours()*60+d.getMinutes();
+  const [ch,cm]=(todayBH.close||'22:00').split(':').map(Number);
+  const closeMin=ch*60+cm;
+  if(hm>=closeMin){
+    if(!_bhAlerted||_bhAlertDay!==dayIdx){
+      _bhAlerted=true;_bhAlertDay=dayIdx;
+      if(DB.settings.autoCloseShift)A['r-close']();else showBHClose();
+    }
+  }else{_bhAlerted=false;}
+}
+function showBHClose(){
+  const s=curSession();if(!s)return;
+  const st=sessionStats(s);
+  const rows=Object.keys(st.tender).map(k=>'<tr><td>'+esc(k.charAt(0).toUpperCase()+k.slice(1))+' sales</td><td style="text-align:right">'+money(st.tender[k])+'</td></tr>').join('');
+  modal({title:'Business hours ended',body:
+    '<p class="warn-t">Your closing time has been reached. Please close the register.</p>'+
+    '<table style="width:100%;margin-top:12px;border-collapse:collapse">'+
+    '<tr><td>Opening float</td><td style="text-align:right"><b>'+money(s.float)+'</b></td></tr>'+
+    rows+
+    '<tr><td>Cash in</td><td style="text-align:right">'+money(st.vin)+'</td></tr>'+
+    '<tr><td>Cash out / expenses</td><td style="text-align:right">−'+money(st.vout)+'</td></tr>'+
+    '<tr style="border-top:2px solid var(--border)"><td><b>Total sales</b></td><td style="text-align:right"><b>'+money(st.net)+'</b></td></tr>'+
+    '<tr><td><b>Expected in drawer</b></td><td style="text-align:right"><b>'+money(st.expected)+'</b></td></tr>'+
+    '</table>',
+    actions:[{label:'Close later'},{label:'Close register now',cls:'danger',fn:()=>{setTimeout(()=>A['r-close'](),100)}}]});
+}
+setInterval(checkBusinessHours,60000);
 
 /* ---------- orders today, vouchers, close ---------- */
 A['r-orders']=()=>{
