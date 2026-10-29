@@ -29,8 +29,8 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   [FeatureKey.BARCODE_GENERATION]: true,
   [FeatureKey.E_INVOICING]:        true,
   [FeatureKey.SHIFT_MANAGEMENT]:   true,
-  [FeatureKey.CRM_MODULE]:         true,
-  [FeatureKey.HCM_MODULE]:         true,
+  [FeatureKey.CRM_MODULE]:         false,
+  [FeatureKey.HCM_MODULE]:         false,
   [FeatureKey.CUSTOM_REPORTS]:     true,
   [FeatureKey.JOBS_MODULE]:        true,
 };

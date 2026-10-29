@@ -456,7 +456,19 @@ function vSettings(){
   if(!can('settings'))return head('Control Panel','Access restricted')+
     '<section class="card narrow"><p class="warn-t">Only administrators can access the Control Panel.</p><p class="muted">Ask your admin to update settings for you.</p></section>';
   const s=DB.settings;
+  const f=s.features||{};
+  const featToggle=(key,label,desc)=>{
+    const on=f[key]!==false;
+    return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--border)">'+
+      '<div><b>'+esc(label)+'</b><p class="muted sm" style="margin:2px 0 0">'+esc(desc)+'</p></div>'+
+      '<label style="flex-shrink:0;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-ch="feat-toggle" data-id="'+esc(key)+'"'+(on?' checked':'')+' style="width:16px;height:16px;cursor:pointer" aria-label="'+esc(label)+'"> <span class="muted sm">'+(on?'On':'Off')+'</span></label></div>';
+  };
   return head('Control Panel','Business profile, tax, loyalty and data')+
+  '<section class="card narrow"><h2>System Modules</h2><p class="muted sm" style="margin-bottom:12px">Enable or disable features for this business. Changes apply immediately.</p>'+
+  featToggle('businessHours','Enable Business Hours','Show an auto-close popup when the register exceeds its configured closing time.')+
+  featToggle('kotPrinting','Enable KOT Printers','Send kitchen order tickets to network printers on each new sale.')+
+  featToggle('tableManagement','Enable Table Management','Show dine-in type, table number input, and the kitchen display in the register.')+
+  '</section>'+
   '<form id="setForm" class="card narrow" autocomplete="off"><h2>Business</h2><div class="form2">'+field('Business name','business',s.business)+field('Tax registration no. (TRN)','trn',s.trn)+field('Address','address',s.address)+field('Phone','phone',s.phone)+
   field('Currency code','currency',s.currency,{max:4})+field('Receipt footer','footer',s.footer)+field('Country dialling code (WhatsApp)','countryCode',s.countryCode||'971',{max:4})+
   field('Minimum ticket margin % (0 = off)','minMarginPct',s.minMarginPct!=null?s.minMarginPct:15,{type:'number',min:0,max:100})+'</div>'+
@@ -469,7 +481,7 @@ function vSettings(){
   '<h2>Receipts</h2><div class="form2">'+select('Receipt language','receiptLang',[['en','English'],['ar','العربية'],['both','English + Arabic']],s.receiptLang||'en')+'<span></span></div>'+
   '<h2>Loyalty</h2><div class="form2">'+field('Points earned per currency unit','pointsPerAed',s.pointsPerAed,{type:'number',step:'0.01',min:0})+field('Currency value of 1 point','pointValue',s.pointValue,{type:'number',step:'0.01',min:0})+'</div>'+
   '<h2>Discount caps (max % without manager approval)</h2><div class="form2">'+field('Admin %','capA',s.caps.admin,{type:'number',min:0})+field('Manager %','capM',s.caps.manager,{type:'number',min:0})+field('Cashier %','capC',s.caps.cashier,{type:'number',min:0})+'</div>'+
-  (bm('kitchen')?'<h2>Kitchen & KOT</h2><div class="form2">'+field('Number of KOT printers (0 = off)','kotPrinters',s.kotPrinters||0,{type:'number',min:0,max:8})+'<span></span></div>':'')+
+  (bm('kitchen')&&f.kotPrinting!==false?'<h2>Kitchen & KOT</h2><div class="form2">'+field('Number of KOT printers (0 = off)','kotPrinters',s.kotPrinters||0,{type:'number',min:0,max:8})+'<span></span></div>':'')+
   '<h2>Appearance & behaviour</h2><div class="form2">'+select('Brand theme','theme',[['A','Theme A — blue & cyan (default)'],['B','Theme B — navy & red']],s.theme)+select('Display size','density',[['compact','Compact (more on screen)'],['comfortable','Comfortable (larger)']],s.density||'compact')+select('Mode','mode',[['auto','Match device'],['light','Light'],['dark','Dark']],s.mode)+'</div>'+
   check('Allow invoicing when stock is zero or short','allowNegative',s.allowNegative)+
   '<h2>Business Hours</h2><p class="muted sm">Register shows an auto-close popup when the closing time is reached.</p>'+
@@ -483,7 +495,7 @@ function vSettings(){
   '<h2 style="margin-top:20px">Item note presets</h2><p class="muted sm">Quick modifier buttons shown when adding a note to an order line. One per line (blank = use defaults).</p>'+
   '<textarea name="notePresets" rows="4" style="width:100%;box-sizing:border-box;padding:8px;font-size:.9em;font-family:inherit;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">'+esc((s.notePresets||[]).join('\n'))+'</textarea>'+
   '<div class="bar mt"><button class="btn primary" type="submit">Save settings</button></div></form>'+
-  (bm('kitchen')?(()=>{
+  (bm('kitchen')&&f.kotPrinting!==false?(()=>{
     const kp=DB.settings.kotPrinters||4;
     const opts=[['','— None —']].concat(Array.from({length:kp},(_,i)=>[(i+1).toString(),'Printer '+(i+1)]));
     const rows=DB.categories.length?DB.categories.map(c=>'<tr><td style="padding:8px 10px;vertical-align:middle"><b>'+esc(c.name)+'</b>'+(c.nameAr?'<br><span class="muted sm">'+esc(c.nameAr)+'</span>':'')+'</td><td style="padding:6px 10px">'+select('','ckp_'+c.id,opts,c.kotPrinter?String(c.kotPrinter):'')+'</td></tr>').join(''):'<tr><td colspan="2" style="padding:10px;color:var(--muted)">No categories yet. Add categories first.</td></tr>';
@@ -508,6 +520,12 @@ function bindSettings(){
     audit('settings.save','');save();applyTheme();toast('Settings saved');render();
   });
 }
+C['feat-toggle']=el=>{
+  if(!DB.settings.features)DB.settings.features={businessHours:true,kotPrinting:true,tableManagement:true};
+  const key=el.dataset.id;
+  DB.settings.features[key]=el.checked;
+  audit('settings.feature',key+'='+(el.checked?'on':'off'));save();toast('Module '+(el.checked?'enabled':'disabled'));render();
+};
 A.backup=()=>{DB.lastBackup=now();save();const b=new Blob([JSON.stringify(DB)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='harbinger-backup-'+dayKey(now())+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
 A.restore=()=>modal({title:'Restore backup',body:'<p class="warn-t">This replaces ALL current data.</p><input type="file" name="f" accept=".json,application/json" autofocus>',actions:[{label:'Cancel'},{label:'Restore',cls:'danger',fn:el=>{
   const f=$('[name=f]',el).files[0]; if(!f){toast('Choose a backup file','err');return false}

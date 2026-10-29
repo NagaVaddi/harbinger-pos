@@ -36,7 +36,9 @@ function vRegister(){
   const lines=T.lines.map(l=>'<div class="ln"><div class="ln-t"><b>'+esc(dn(l.it))+'</b><span>'+fmt(l.total)+'</span></div>'+lineMeta(l)+'<div class="ln-c">'+lineQtyUi(l)+
     '<button type="button" class="lnk" data-act="r-note" data-id="'+l.key+'">'+(l.note?'✎ '+esc(l.note):tr('+ note'))+'</button><button type="button" class="lnk bad" data-act="r-del" data-id="'+l.key+'" aria-label="Remove">✕</button></div></div>').join('')||'<div class="empty">'+tr('Tap an item or scan a barcode to start.')+'</div>';
   const disc=T.discounts.map(d=>'<div class="tr disc"><span>'+esc(d.label)+'</span><span>−'+fmt(d.amount)+'</span></div>').join('');
-  const types=biz().types.map(t=>[t,typeLabel(t)]).map(t=>'<button type="button" class="seg'+(R.type===t[0]?' on':'')+'" data-act="r-type" data-id="'+t[0]+'">'+t[1]+'</button>').join('');
+  const tableEnabled=!(DB.settings.features&&DB.settings.features.tableManagement===false);
+  if(!tableEnabled&&R.type==='dine-in')R.type='takeaway';
+  const types=biz().types.filter(t=>tableEnabled||t!=='dine-in').map(t=>[t,typeLabel(t)]).map(t=>'<button type="button" class="seg'+(R.type===t[0]?' on':'')+'" data-act="r-type" data-id="'+t[0]+'">'+t[1]+'</button>').join('');
   const canPay=R.cart.length>0;
   return '<div class="reg">'+
   '<header class="rh"><div class="rb"><svg class="mk" viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg><strong>'+tr('Harbinger Register')+'</strong><span class="muted">'+esc(ct.name)+' · '+esc(ME.name)+'</span></div>'+
@@ -45,7 +47,7 @@ function vRegister(){
   '<div class="rbody"><section class="rl"><div class="rs"><input id="rq" type="search" placeholder="'+esc(tr('Search item or scan barcode  (F2)'))+'" value="'+esc(R.q)+'" data-in="rq" autocomplete="off" aria-label="Search items or scan barcode"></div>'+
   '<div class="chips" role="tablist" aria-label="Categories">'+chips+'</div><div class="tiles" role="list">'+tiles+'</div></section>'+
   '<aside class="rt" aria-label="Current ticket"><div class="segs">'+types+'</div>'+
-  (bm('tables')&&R.type==='dine-in'?'<input class="tbl-in" id="rtable" placeholder="'+esc(tr('Table / seat'))+'" maxlength="12" value="'+esc(R.table)+'" data-in="rtable" aria-label="Table">':'')+
+  (tableEnabled&&bm('tables')&&R.type==='dine-in'?'<input class="tbl-in" id="rtable" placeholder="'+esc(tr('Table / seat'))+'" maxlength="12" value="'+esc(R.table)+'" data-in="rtable" aria-label="Table">':'')+
   '<div class="gl">'+(cu?'<span class="gchip"><b>'+esc(cu.name)+'</b> · '+(bm('insurance')&&cu.insurer?esc(cu.insurer)+' · co-pay '+(cu.copay||0)+'%':cu.points+' pts')+' <button type="button" data-act="r-guest-x" aria-label="Remove guest">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-guest">'+tr('+ Guest')+'</button>')+'</div>'+
   (bm('vehicle')?'<div class="gl">'+(R.vehicle?'<span class="gchip">🚗 <b>'+esc(R.vehicle.plate)+'</b> '+esc((R.vehicle.make||'')+' '+(R.vehicle.model||''))+' <button type="button" data-act="r-vehicle-x" aria-label="Remove vehicle">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-vehicle">+ Vehicle</button>')+'</div>':'')+(R.type==='delivery'&&DB.drivers.some(x=>x.active)?'<div class="gl">'+(R.driverId?'<span class="gchip">🛵 <b>'+esc((byId(DB.drivers,R.driverId)||{}).name||'')+'</b> <button type="button" data-act="r-driver-x" aria-label="Remove driver">✕</button></span>':'<button type="button" class="btn ghost sm" data-act="r-driver">+ Driver</button>')+'</div>':'')+(R.jobId?'<div class="gl"><span class="gchip">Job <b>'+esc((byId(DB.jobs,R.jobId)||{}).no||'')+'</b></span></div>':'')+'<div class="lines">'+lines+'</div>'+
   '<div class="sums"><div class="tr"><span>'+tr('Subtotal')+'</span><span>'+fmt(T.subtotal)+'</span></div>'+disc+
@@ -223,12 +225,13 @@ function finalizeOrder(S,sess,payments,change,extra){
   const lines=T.lines.map(l=>{
     const allocs=l.it.track?deductStock(l.it.id,l.qty,"Sale "+no):[];
     const cat=byId(DB.categories,l.it.categoryId);
-    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',serial:l.serial||null,allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0,kotPrinter:(cat&&cat.kotPrinter)||null};
+    const kotEnabled=!(DB.settings.features&&DB.settings.features.kotPrinting===false);
+    return {itemId:l.it.id,name:l.it.name,qty:l.qty,price:l.unit,cost:l.it.cost,tax:l.it.tax,note:l.note,unit:l.it.unit||'',kind:l.it.kind||'product',rx:l.rx||null,provider:l.provider||'',serial:l.serial||null,allocs:allocs,cogs:l.it.track?allocCost(allocs,l.it.id):0,kotPrinter:kotEnabled?(cat&&cat.kotPrinter)||null:null};
   });
   const cu=byId(DB.customers,S.customerId), earned=cu?Math.floor(T.total*DB.settings.pointsPerAed):0;
   const usedCode=T.discounts.some(d=>d.kind==="code")?S.code:null;
   const order=Object.assign({id:uid("o"),no:no,ts:now(),counterId:sess.counterId,sessionId:sess.id,userId:ME.id,type:S.type,table:S.type==="dine-in"?S.table:"",customerId:cu?cu.id:null,lines:lines,
-    subtotal:T.subtotal,discounts:T.discounts,discountTotal:T.discountTotal,charges:T.charges,chargeTotal:T.chargeTotal,vat:T.vat,total:T.total,payments:payments,change:change,status:"completed",vehicle:S.vehicle||null,jobId:S.jobId||null,driverId:S.type==="delivery"?(S.driverId||null):null,pointsEarned:earned,pointsRedeemed:T.redeemed,code:usedCode,kds:bm("kitchen")?{status:"new",ts:now()}:undefined,insurer:((payments.find(p=>p.method==="insurance"))||{}).insurer||"",marginPct:Math.round(ticketMargin(T).pct*10)/10},extra||{});
+    subtotal:T.subtotal,discounts:T.discounts,discountTotal:T.discountTotal,charges:T.charges,chargeTotal:T.chargeTotal,vat:T.vat,total:T.total,payments:payments,change:change,status:"completed",vehicle:S.vehicle||null,jobId:S.jobId||null,driverId:S.type==="delivery"?(S.driverId||null):null,pointsEarned:earned,pointsRedeemed:T.redeemed,code:usedCode,kds:(bm("kitchen")&&!(DB.settings.features&&DB.settings.features.kotPrinting===false))?{status:"new",ts:now()}:undefined,insurer:((payments.find(p=>p.method==="insurance"))||{}).insurer||"",marginPct:Math.round(ticketMargin(T).pct*10)/10},extra||{});
   if(cu){cu.points=Math.max(0,cu.points-T.redeemed+earned);cu.visits++;cu.spend=r2(cu.spend+T.total)}
   if(usedCode){const c=byId(DB.codes,usedCode);if(c)c.used++}
   DB.orders.push(order);if(typeof logRx==="function")logRx(order);postSale(order);if(typeof einvStamp==="function")einvStamp(order,"invoice");if(bm("serial"))recordWarranty(order);if(S.jobId)finishJob(order,S.jobId);if(S.vehicle&&cu)rememberVehicle(cu.id,S.vehicle);audit("sale",no+" "+money(T.total));save();
@@ -245,6 +248,7 @@ function completeSale(payments,change){
 let _bhAlerted=false,_bhAlertDay=-1;
 function checkBusinessHours(){
   if(!curSession())return;
+  if(DB.settings.features&&DB.settings.features.businessHours===false)return;
   const bh=DB.settings.businessHours;if(!bh||!bh.length)return;
   const d=new Date(),jsDay=d.getDay(); // 0=Sun,1=Mon,...6=Sat
   const dayIdx=[6,0,1,2,3,4,5][jsDay]; // map to our array Mon=0...Sun=6
