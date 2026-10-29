@@ -73,6 +73,9 @@ function migrate(){ if(DB.settings&&!DB.settings.sellAlways){DB.settings.allowNe
     {day:'Sunday',enabled:true,open:'09:00',close:'22:00'}];
   if(DB.settings.autoCloseShift===undefined)DB.settings.autoCloseShift=false;
   if(DB.settings.notePresets===undefined)DB.settings.notePresets=null;
+  if(Array.isArray(DB.settings.notePresets)&&DB.settings.notePresets.length&&typeof DB.settings.notePresets[0]==='string'){
+    DB.settings.notePresets=DB.settings.notePresets.map(t=>({id:uid('np'),text:t,active:true}));
+  }
   if(!DB.settings.features)DB.settings.features={businessHours:true,kotPrinting:true,tableManagement:true};
   if(DB.settings.features.businessHours===undefined)DB.settings.features.businessHours=true;
   if(DB.settings.features.kotPrinting===undefined)DB.settings.features.kotPrinting=true;

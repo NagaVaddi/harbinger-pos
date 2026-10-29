@@ -88,8 +88,14 @@ A['r-del']=d=>{R.cart=R.cart.filter(x=>x.key!==d.id);render()};
 const byId2=k=>R.cart.find(x=>x.key===k);
 const DEFAULT_NOTE_PRESETS=['No onion','No cheese','No sauce','Extra spicy','Well done','Medium','No ice','Extra portion','On the side','No salt','No sugar','Extra sauce'];
 function notePresetsHtml(){
-  const presets=DB.settings.notePresets&&DB.settings.notePresets.length?DB.settings.notePresets:DEFAULT_NOTE_PRESETS;
-  return '<div style="margin-top:10px"><p class="muted sm" style="margin:0 0 6px">Quick modifiers:</p><div style="display:flex;flex-wrap:wrap;gap:6px">'+presets.map(p=>'<button type="button" class="btn ghost sm note-pr" data-p="'+esc(p)+'">'+esc(p)+'</button>').join('')+'</div></div>';
+  const raw=DB.settings.notePresets&&DB.settings.notePresets.length?DB.settings.notePresets:null;
+  let strs;
+  if(raw){
+    if(typeof raw[0]==='string')strs=raw;
+    else strs=raw.filter(p=>p.active!==false).map(p=>p.text||p);
+  }
+  if(!strs||!strs.length)strs=DEFAULT_NOTE_PRESETS;
+  return '<div style="margin-top:10px"><p class="muted sm" style="margin:0 0 6px">Quick modifiers:</p><div style="display:flex;flex-wrap:wrap;gap:6px">'+strs.map(p=>'<button type="button" class="btn ghost sm note-pr" data-p="'+esc(p)+'">'+esc(p)+'</button>').join('')+'</div></div>';
 }
 function bindNotePresets(el){
   el.querySelectorAll('.note-pr').forEach(b=>b.addEventListener('click',()=>{

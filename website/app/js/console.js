@@ -484,9 +484,16 @@ function vSettings(){
   (bm('kitchen')&&f.kotPrinting!==false?'<h2>Kitchen & KOT</h2><div class="form2">'+field('Number of KOT printers (0 = off)','kotPrinters',s.kotPrinters||0,{type:'number',min:0,max:8})+'<span></span></div>':'')+
   '<h2>Appearance & behaviour</h2><div class="form2">'+select('Brand theme','theme',[['A','Theme A — blue & cyan (default)'],['B','Theme B — navy & red']],s.theme)+select('Display size','density',[['compact','Compact (more on screen)'],['comfortable','Comfortable (larger)']],s.density||'compact')+select('Mode','mode',[['auto','Match device'],['light','Light'],['dark','Dark']],s.mode)+'</div>'+
   check('Allow invoicing when stock is zero or short','allowNegative',s.allowNegative)+
-  '<h2 style="margin-top:20px">Item note presets</h2><p class="muted sm">Quick modifier buttons shown when adding a note to an order line. One per line (blank = use defaults).</p>'+
-  '<textarea name="notePresets" rows="4" style="width:100%;box-sizing:border-box;padding:8px;font-size:.9em;font-family:inherit;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">'+esc((s.notePresets||[]).join('\n'))+'</textarea>'+
   '<div class="bar mt"><button class="btn primary" type="submit">Save settings</button></div></form>'+
+  '<section class="card narrow mt"><h2>Item Note Presets</h2><p class="muted sm">Quick modifier buttons shown when a waiter adds a note to an order line.</p>'+
+  '<div style="display:flex;gap:8px;margin-bottom:12px"><input id="npInput" type="text" placeholder=\'e.g. "No garlic"\' maxlength="50" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.9em"><button type="button" class="btn primary sm" data-act="np-add">+ Add</button></div>'+
+  '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
+  (()=>{const np=s.notePresets||[];
+    return np.length?np.map(p=>'<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2,rgba(128,128,128,.1));border:1px solid var(--border);border-radius:999px;padding:5px 12px;font-size:.85em">'+esc(p.text||p)+
+      ' <button type="button" data-act="np-toggle" data-id="'+esc(p.id||'')+'" style="color:'+(p.active===false?'var(--danger,#e55)':'var(--accent,#3b82f6)')+';border:0;background:0;cursor:pointer;font-size:.8em;padding:0 2px">'+(p.active===false?'off':'on')+'</button>'+
+      ' <button type="button" data-act="np-del" data-id="'+esc(p.id||'')+'" style="color:var(--danger,#e55);border:0;background:0;cursor:pointer;font-weight:bold;padding:0 2px;font-size:.95em">×</button></span>').join(''):
+      '<p class="muted sm" style="margin:0">No presets yet — defaults will be used in the register. Add some above.</p>'})() +
+  '</div></section>'+
   '<section class="card narrow mt" id="bizHoursSection"><h2>Operating Hours &amp; Shift Control</h2><p class="muted sm">Set daily hours. The system can auto-prompt shift close at closing time.</p>'+
   (()=>{const bh=s.businessHours||[];const DAYS=[['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday'],['Sun','Sunday']];
     return '<div>'+DAYS.map(([abbr,full],i)=>{const d=bh[i]||{day:full,enabled:true,open:'08:00',close:'22:00'};
@@ -512,11 +519,9 @@ function bindSettings(){
     e.preventDefault(); const d=formData(f), s=DB.settings;
     const vat=num(d.vatPct); if(vat<0||vat>100){toast('VAT must be 0–100','err');return}
     const caps=[num(d.capA),num(d.capM),num(d.capC)]; if(caps.some(c=>c<0||c>100)){toast('Caps must be 0–100','err');return}
-    const npRaw=(d.notePresets||'').split('\n').map(x=>x.trim()).filter(Boolean);
-    const notePresets=npRaw.length?npRaw:null;
     Object.assign(s,{business:d.business.trim()||'My Business',trn:d.trn.trim(),address:d.address.trim(),phone:d.phone.trim(),currency:(d.currency.trim()||'AED').toUpperCase(),footer:d.footer.trim(),
       vatPct:vat,taxInclusive:d.taxInclusive==='1',country:d.country,taxLabel:(d.taxLabel||'').trim(),decimals:d.decimals===''?null:Math.min(3,Math.max(0,Math.round(num(d.decimals)))),receiptLang:d.receiptLang,
-      charges:[0,1,2].map(i=>({id:'ch'+i,name:(d['ch'+i+'_name']||'').trim()||('Charge '+(i+1)),pct:Math.min(100,Math.max(0,num(d['ch'+i+'_pct']))),taxable:!!d['ch'+i+'_tax'],types:d['ch'+i+'_dine']?['dine-in']:[],payable:!!d['ch'+i+'_gov']})).filter(c=>c.pct>0),pointsPerAed:Math.max(0,num(d.pointsPerAed)),pointValue:Math.max(0.01,num(d.pointValue)),caps:{admin:caps[0],manager:caps[1],cashier:caps[2]},theme:d.theme,mode:d.mode,density:d.density||'compact',allowNegative:!!d.allowNegative,countryCode:(d.countryCode||'971').replace(/\D/g,'')||'971',minMarginPct:Math.min(100,Math.max(0,num(d.minMarginPct))),kotPrinters:Math.min(8,Math.max(0,Math.round(num(d.kotPrinters||0)))),notePresets:notePresets});
+      charges:[0,1,2].map(i=>({id:'ch'+i,name:(d['ch'+i+'_name']||'').trim()||('Charge '+(i+1)),pct:Math.min(100,Math.max(0,num(d['ch'+i+'_pct']))),taxable:!!d['ch'+i+'_tax'],types:d['ch'+i+'_dine']?['dine-in']:[],payable:!!d['ch'+i+'_gov']})).filter(c=>c.pct>0),pointsPerAed:Math.max(0,num(d.pointsPerAed)),pointValue:Math.max(0.01,num(d.pointValue)),caps:{admin:caps[0],manager:caps[1],cashier:caps[2]},theme:d.theme,mode:d.mode,density:d.density||'compact',allowNegative:!!d.allowNegative,countryCode:(d.countryCode||'971').replace(/\D/g,'')||'971',minMarginPct:Math.min(100,Math.max(0,num(d.minMarginPct))),kotPrinters:Math.min(8,Math.max(0,Math.round(num(d.kotPrinters||0))))});
     audit('settings.save','');save();applyTheme();toast('Settings saved');render();
   });
 }
@@ -534,6 +539,25 @@ A['biz-hours-save']=()=>{
   });
   DB.settings.autoCloseShift=!!($('#bh_autoclose')&&$('#bh_autoclose').checked);
   audit('settings.biz-hours','');save();toast('Business hours saved');
+};
+A['np-add']=()=>{
+  const inp=$('#npInput');if(!inp)return;
+  const text=inp.value.trim();if(!text){toast('Enter preset text','err');return}
+  if(!DB.settings.notePresets)DB.settings.notePresets=[];
+  if(DB.settings.notePresets.some(p=>p.text===text)){toast('Already exists','err');return}
+  DB.settings.notePresets.push({id:uid('np'),text:text,active:true});
+  audit('settings.notepreset','add:'+text);save();render();
+};
+A['np-toggle']=d=>{
+  const np=DB.settings.notePresets;if(!np)return;
+  const p=np.find(x=>x.id===d.id);if(!p)return;
+  p.active=!p.active;
+  audit('settings.notepreset','toggle:'+p.text+':'+(p.active?'on':'off'));save();render();
+};
+A['np-del']=d=>{
+  if(!DB.settings.notePresets)return;
+  DB.settings.notePresets=DB.settings.notePresets.filter(x=>x.id!==d.id);
+  audit('settings.notepreset','del');save();render();
 };
 A.backup=()=>{DB.lastBackup=now();save();const b=new Blob([JSON.stringify(DB)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='harbinger-backup-'+dayKey(now())+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
 A.restore=()=>modal({title:'Restore backup',body:'<p class="warn-t">This replaces ALL current data.</p><input type="file" name="f" accept=".json,application/json" autofocus>',actions:[{label:'Cancel'},{label:'Restore',cls:'danger',fn:el=>{
