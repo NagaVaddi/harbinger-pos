@@ -463,8 +463,59 @@ function vSettings(){
       '<div><b>'+esc(label)+'</b><p class="muted sm" style="margin:2px 0 0">'+esc(desc)+'</p></div>'+
       '<label style="flex-shrink:0;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-ch="feat-toggle" data-id="'+esc(key)+'"'+(on?' checked':'')+' style="width:16px;height:16px;cursor:pointer" aria-label="'+esc(label)+'"> <span class="muted sm">'+(on?'On':'Off')+'</span></label></div>';
   };
+  const ITPL=[
+    {id:'restaurant',icon:'🍔',name:'Restaurant / Café',feat:['Tables & KOT','Kitchen routing','Menu categories']},
+    {id:'supermarket',icon:'🛒',name:'Grocery / Supermarket',feat:['Barcode scanning','Weighted items','Loyalty points']},
+    {id:'pharmacy',icon:'💊',name:'Pharmacy',feat:['Rx tracking','Batch & expiry','Drug schedule fields']},
+    {id:'clinic',icon:'🏥',name:'Clinic / Medical',feat:['Appointments','HCM module','Patient file fields']},
+    {id:'garage',icon:'🔧',name:'Garage / Workshop',feat:['Job cards','Vehicle registry','Plate & VIN fields']},
+    {id:'tyre',icon:'🚗',name:'Tyre Shop',feat:['Tyre sizing','Vehicle registry','Alignment & balancing']},
+    {id:'salon',icon:'✂️',name:'Salon / Spa',feat:['Staff commission','Appointments','Stylist fields']},
+    {id:'tailor',icon:'🪡',name:'Tailor / Alteration',feat:['Job tracking','Measurement fields','Ready date']},
+    {id:'laundry',icon:'👕',name:'Laundry / Services',feat:['Pickup/dropoff','Garment tagging','Delivery scheduling'],badge:'New'},
+    {id:'butcher',icon:'🥩',name:'Butcher / Meat',feat:['Weighted barcodes','Cut type fields','Per-kg pricing']},
+    {id:'wholesale',icon:'📦',name:'Wholesale / B2B',feat:['Credit limits','Bulk pricing','Purchase orders'],badge:'Pro'},
+    {id:'logistics',icon:'🚛',name:'Logistics / Delivery',feat:['Driver app','Route fields','COD tracking'],badge:'Pro'},
+    {id:'ecommerce',icon:'🌐',name:'E-Commerce / Online',feat:['Warehouse sync','Online payments','Delivery dispatch'],badge:'New'},
+  ];
+  const curBiz=bizType();
+  const industryHtml='<section class="card" style="flex:1;min-width:280px">'+
+    '<h2>Industry templates</h2>'+
+    '<p class="muted sm" style="margin-bottom:14px">Load a preset that configures categories, feature flags, and custom fields for your business type.</p>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px">'+
+    ITPL.map(t=>{
+      const act=t.id===curBiz;
+      const bdg=t.badge?'<span style="position:absolute;top:8px;right:8px;background:'+(t.badge==='Pro'?'#f59e0b':'#10b981')+';color:#fff;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:700">'+esc(t.badge)+'</span>':'';
+      return '<div style="position:relative;border:1.5px solid '+(act?'#f97316':'var(--border)')+';border-radius:10px;padding:14px 12px;display:flex;flex-direction:column;gap:0;background:'+(act?'rgba(249,115,22,.08)':'var(--bg2,rgba(128,128,128,.05))')+'">'+ bdg+
+        '<div style="font-size:2em;line-height:1;margin-bottom:8px">'+t.icon+'</div>'+
+        '<b style="font-size:.88em;display:block;margin-bottom:6px">'+esc(t.name)+'</b>'+
+        '<ul style="margin:0 0 10px;padding-left:16px;color:var(--muted);font-size:.77em;line-height:1.6">'+t.feat.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'+
+        (act?'<button type="button" class="btn sm" disabled style="background:#f97316;border-color:#f97316;color:#fff;font-size:.78em;cursor:default;width:100%;text-align:center">✓ Active</button>':
+          '<button type="button" class="btn ghost sm" data-act="biz-load-tpl" data-id="'+esc(t.id)+'" style="font-size:.78em;width:100%;text-align:center">Load template</button>')+
+        '</div>';
+    }).join('')+
+    '</div></section>';
+  const bhDays=[['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday'],['Sun','Sunday']];
+  const bhData=s.businessHours||[];
+  const bizHoursHtml='<section class="card" id="bizHoursSection" style="flex:0 0 340px;min-width:280px">'+
+    '<h2>Operating Hours &amp; Shift Control</h2>'+
+    '<p class="muted sm">Set daily hours. The system can auto-prompt shift close at closing time.</p>'+
+    '<div style="margin-top:10px">'+
+    bhDays.map(([abbr,full],i)=>{const d=bhData[i]||{day:full,enabled:true,open:'08:00',close:'22:00'};
+      return '<div style="display:grid;grid-template-columns:80px 1fr 1fr;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--border)">'+
+        '<label style="display:flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox" id="bh_on_'+i+'"'+(d.enabled?' checked':'')+' style="width:15px;height:15px;cursor:pointer"><span style="font-size:.9em">'+esc(abbr)+'</span></label>'+
+        '<label style="display:flex;flex-direction:column;gap:2px"><span style="font-size:.72em;color:var(--muted)">Open</span><input type="time" id="bh_open_'+i+'" value="'+esc(d.open||'08:00')+'" style="padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.85em"></label>'+
+        '<label style="display:flex;flex-direction:column;gap:2px"><span style="font-size:.72em;color:var(--muted)">Close</span><input type="time" id="bh_close_'+i+'" value="'+esc(d.close||'22:00')+'" style="padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.85em"></label>'+
+        '</div>';}).join('')+
+    '</div>'+
+    '<label style="display:flex;align-items:flex-start;gap:10px;margin-top:14px;cursor:pointer">'+
+    '<input type="checkbox" id="bh_autoclose"'+(s.autoCloseShift?' checked':'')+' style="width:15px;height:15px;margin-top:3px;flex-shrink:0;cursor:pointer">'+
+    '<div><b style="font-size:.9em">Auto-prompt shift close at closing time</b><p class="muted sm" style="margin:2px 0 0">Locks the POS with a Z-report when business hours end</p></div></label>'+
+    '<div class="bar mt"><button class="btn primary" data-act="biz-hours-save" style="width:100%">&#128196; Save Business Hours</button></div>'+
+    '</section>';
   return head('Control Panel','Business profile, tax, loyalty and data')+
-  '<section class="card narrow"><h2>System Modules</h2><p class="muted sm" style="margin-bottom:12px">Enable or disable features for this business. Changes apply immediately.</p>'+
+  '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:8px">'+industryHtml+bizHoursHtml+'</div>'+
+  '<section class="card narrow mt"><h2>System Modules</h2><p class="muted sm" style="margin-bottom:12px">Enable or disable features for this business. Changes apply immediately.</p>'+
   featToggle('businessHours','Enable Business Hours','Show an auto-close popup when the register exceeds its configured closing time.')+
   featToggle('kotPrinting','Enable KOT Printers','Send kitchen order tickets to network printers on each new sale.')+
   featToggle('tableManagement','Enable Table Management','Show dine-in type, table number input, and the kitchen display in the register.')+
@@ -472,7 +523,7 @@ function vSettings(){
   '<form id="setForm" class="card narrow" autocomplete="off"><h2>Business</h2><div class="form2">'+field('Business name','business',s.business)+field('Tax registration no. (TRN)','trn',s.trn)+field('Address','address',s.address)+field('Phone','phone',s.phone)+
   field('Currency code','currency',s.currency,{max:4})+field('Receipt footer','footer',s.footer)+field('Country dialling code (WhatsApp)','countryCode',s.countryCode||'971',{max:4})+
   field('Minimum ticket margin % (0 = off)','minMarginPct',s.minMarginPct!=null?s.minMarginPct:15,{type:'number',min:0,max:100})+'</div>'+
-  ''+bizSettingsHtml()+'<h2>Country & region</h2><div class="form2">'+select('Country','country',countryList(),s.country||'XX')+'<div class="end"><button type="button" class="btn ghost" data-act="country-apply">Apply country defaults</button></div></div><p class="muted sm">'+esc((COUNTRIES[s.country]||COUNTRIES.XX).note)+' Rates and rules change — confirm with your tax authority.</p>'+
+  '<h2>Country & region</h2><div class="form2">'+select('Country','country',countryList(),s.country||'XX')+'<div class="end"><button type="button" class="btn ghost" data-act="country-apply">Apply country defaults</button></div></div><p class="muted sm">'+esc((COUNTRIES[s.country]||COUNTRIES.XX).note)+' Rates and rules change — confirm with your tax authority.</p>'+
   '<h2>Tax & charges</h2><div class="form2">'+field('Tax rate %','vatPct',s.vatPct,{type:'number',step:'0.01',min:0})+select('Prices are','taxInclusive',[['1','Tax-inclusive'],['0','Tax-exclusive']],s.taxInclusive?'1':'0')+
   field('Tax label (VAT / GST / Sales tax)','taxLabel',s.taxLabel||'')+field('Currency decimals','decimals',curDec(),{type:'number',min:0,max:3})+'</div>'+
   '<p class="muted sm">Service charge / municipality fee style add-ons (leave a % at 0 to switch off). Rules differ by country and licence — check what you may charge.</p>'+
@@ -494,16 +545,6 @@ function vSettings(){
       ' <button type="button" data-act="np-del" data-id="'+esc(p.id||'')+'" style="color:var(--danger,#e55);border:0;background:0;cursor:pointer;font-weight:bold;padding:0 2px;font-size:.95em">×</button></span>').join(''):
       '<p class="muted sm" style="margin:0">No presets yet — defaults will be used in the register. Add some above.</p>'})() +
   '</div></section>'+
-  '<section class="card narrow mt" id="bizHoursSection"><h2>Operating Hours &amp; Shift Control</h2><p class="muted sm">Set daily hours. The system can auto-prompt shift close at closing time.</p>'+
-  (()=>{const bh=s.businessHours||[];const DAYS=[['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday'],['Sun','Sunday']];
-    return '<div>'+DAYS.map(([abbr,full],i)=>{const d=bh[i]||{day:full,enabled:true,open:'08:00',close:'22:00'};
-      return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">'+
-        '<label style="display:flex;align-items:center;gap:8px;width:90px;cursor:pointer"><input type="checkbox" id="bh_on_'+i+'"'+(d.enabled?' checked':'')+' style="width:15px;height:15px;flex-shrink:0;cursor:pointer"> <span>'+esc(abbr)+'</span></label>'+
-        '<label style="display:flex;align-items:center;gap:6px;font-size:.85em;color:var(--muted)">Open <input type="time" id="bh_open_'+i+'" value="'+esc(d.open||'08:00')+'" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.9em"></label>'+
-        '<label style="display:flex;align-items:center;gap:6px;font-size:.85em;color:var(--muted)">Close <input type="time" id="bh_close_'+i+'" value="'+esc(d.close||'22:00')+'" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.9em"></label>'+
-        '</div>';}).join('')+'</div>';})() +
-  '<label style="display:flex;align-items:flex-start;gap:10px;margin-top:16px;cursor:pointer"><input type="checkbox" id="bh_autoclose"'+(s.autoCloseShift?' checked':'')+' style="width:15px;height:15px;margin-top:3px;flex-shrink:0;cursor:pointer"><div><b>Auto-prompt shift close at closing time</b><p class="muted sm" style="margin:2px 0 0">Locks the POS with a Z-report when business hours end</p></div></label>'+
-  '<div class="bar mt"><button class="btn primary" data-act="biz-hours-save">&#128196; Save Business Hours</button></div></section>'+
   (bm('kitchen')&&f.kotPrinting!==false?(()=>{
     const kp=DB.settings.kotPrinters||4;
     const opts=[['','— None —']].concat(Array.from({length:kp},(_,i)=>[(i+1).toString(),'Printer '+(i+1)]));
@@ -530,6 +571,12 @@ C['feat-toggle']=el=>{
   const key=el.dataset.id;
   DB.settings.features[key]=el.checked;
   audit('settings.feature',key+'='+(el.checked?'on':'off'));save();toast('Module '+(el.checked?'enabled':'disabled'));render();
+};
+A['biz-load-tpl']=d=>{
+  const t=d.id;
+  if(typeof BIZ!=='undefined'&&BIZ[t]){A['biz-switch'](d);return}
+  const names={garage:'Garage / Workshop',tyre:'Tyre Shop',tailor:'Tailor / Alteration',laundry:'Laundry / Services',butcher:'Butcher / Meat',wholesale:'Wholesale / B2B',logistics:'Logistics / Delivery',ecommerce:'E-Commerce / Online'};
+  confirmBox('Switch to "'+esc(names[t]||t)+'"? This changes the business type. Download a backup first if needed.',()=>{DB.settings.businessType=t;audit('settings.biz-type',t);save();toast((names[t]||t)+' template loaded');render()},'Switch');
 };
 A['biz-hours-save']=()=>{
   const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
