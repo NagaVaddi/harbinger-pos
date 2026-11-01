@@ -608,7 +608,10 @@ function vSettings(){
   '<section class="card narrow mt"><h2>Feature Flags</h2><p class="muted sm" style="margin-bottom:16px">Enable or disable features for this business. Changes take effect after saving.</p>'+
   FEAT_GROUPS.map(g=>'<div style="margin-bottom:14px"><div style="font-size:.7em;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:4px 0 2px">'+esc(g.g)+'</div>'+g.flags.map(([k,l,d])=>flagRow(k,l,d)).join('')+'</div>').join('')+
   '<div class="bar mt"><button type="button" class="btn primary" data-act="feat-save">&#128190; Save features</button></div></section>'+
+  (s.businessCode?'':'<div class="card narrow" style="border:2px solid var(--warn,#f59e0b);background:rgba(245,158,11,.07);margin-bottom:12px"><div style="display:flex;align-items:flex-start;gap:12px"><span style="font-size:1.5em">⚠️</span><div><b style="color:var(--warn,#f59e0b)">Cloud sync is OFF — Business Code not set</b><p class="muted sm" style="margin:4px 0 8px">Without a Business Code, your data is saved on this device only and will not sync across devices or to the cloud. Set a code below in <b>Business → Business Code</b>.</p><button type="button" class="btn ghost sm" data-act="biz-gen-code">⚡ Auto-generate a code for me</button></div></div></div>')+
   '<form id="setForm" class="card narrow" autocomplete="off"><h2>Business</h2><div class="form2">'+field('Business name','business',s.business)+field('Tax registration no. (TRN)','trn',s.trn)+field('Address','address',s.address)+field('Phone','phone',s.phone)+
+  '<label style="grid-column:1/-1">Business Code <span style="font-size:.75em;color:var(--muted);font-weight:400">(unique ID for cloud sync — share this with all your devices)</span></label>'+
+  '<div style="display:flex;gap:6px;grid-column:1/-1"><input name="businessCode" id="bizCodeInp" type="text" value="'+esc(s.businessCode||'')+'" maxlength="32" placeholder="e.g. MYSHOP-001 (set once, keep it secret)" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.9em;font-family:monospace"><button type="button" class="btn ghost sm" data-act="biz-gen-code" title="Auto-generate">&#x2699; Generate</button></div>'+
   field('Currency code','currency',s.currency,{max:4})+field('Receipt footer','footer',s.footer)+field('Country dialling code (WhatsApp)','countryCode',s.countryCode||'971',{max:4})+
   field('Minimum ticket margin % (0 = off)','minMarginPct',s.minMarginPct!=null?s.minMarginPct:15,{type:'number',min:0,max:100})+'</div>'+
   '<h2>Country & region</h2><div class="form2">'+select('Country','country',countryList(),s.country||'XX')+'<div class="end"><button type="button" class="btn ghost" data-act="country-apply">Apply country defaults</button></div></div><p class="muted sm">'+esc((COUNTRIES[s.country]||COUNTRIES.XX).note)+' Rates and rules change — confirm with your tax authority.</p>'+
@@ -669,10 +672,15 @@ function bindSettings(){
     e.preventDefault(); const d=formData(f), s=DB.settings;
     const vat=num(d.vatPct); if(vat<0||vat>100){toast('VAT must be 0–100','err');return}
     const caps=[num(d.capA),num(d.capM),num(d.capC)]; if(caps.some(c=>c<0||c>100)){toast('Caps must be 0–100','err');return}
+    const newCode=(d.businessCode||'').trim().replace(/\s/g,'').substring(0,32);
+    const oldCode=s.businessCode||'';
+    if(newCode&&newCode!==oldCode&&oldCode){
+      if(!confirm('Changing the Business Code will switch to a different cloud database. Your current data stays on this device but will sync to the new code. Continue?'))return;
+    }
     Object.assign(s,{business:d.business.trim()||'My Business',trn:d.trn.trim(),address:d.address.trim(),phone:d.phone.trim(),currency:(d.currency.trim()||'AED').toUpperCase(),footer:d.footer.trim(),
       vatPct:vat,taxInclusive:d.taxInclusive==='1',country:d.country,taxLabel:(d.taxLabel||'').trim(),decimals:d.decimals===''?null:Math.min(3,Math.max(0,Math.round(num(d.decimals)))),receiptLang:d.receiptLang,
-      charges:[0,1,2].map(i=>({id:'ch'+i,name:(d['ch'+i+'_name']||'').trim()||('Charge '+(i+1)),pct:Math.min(100,Math.max(0,num(d['ch'+i+'_pct']))),taxable:!!d['ch'+i+'_tax'],types:d['ch'+i+'_dine']?['dine-in']:[],payable:!!d['ch'+i+'_gov']})).filter(c=>c.pct>0),pointsPerAed:Math.max(0,num(d.pointsPerAed)),pointValue:Math.max(0.01,num(d.pointValue)),caps:{admin:caps[0],manager:caps[1],cashier:caps[2]},theme:d.theme,mode:d.mode,density:d.density||'compact',allowNegative:!!d.allowNegative,countryCode:(d.countryCode||'971').replace(/\D/g,'')||'971',minMarginPct:Math.min(100,Math.max(0,num(d.minMarginPct))),kotPrinters:Math.min(8,Math.max(0,Math.round(num(d.kotPrinters||0))))});
-    audit('settings.save','');save();applyTheme();toast('Settings saved');render();
+      charges:[0,1,2].map(i=>({id:'ch'+i,name:(d['ch'+i+'_name']||'').trim()||('Charge '+(i+1)),pct:Math.min(100,Math.max(0,num(d['ch'+i+'_pct']))),taxable:!!d['ch'+i+'_tax'],types:d['ch'+i+'_dine']?['dine-in']:[],payable:!!d['ch'+i+'_gov']})).filter(c=>c.pct>0),pointsPerAed:Math.max(0,num(d.pointsPerAed)),pointValue:Math.max(0.01,num(d.pointValue)),caps:{admin:caps[0],manager:caps[1],cashier:caps[2]},theme:d.theme,mode:d.mode,density:d.density||'compact',allowNegative:!!d.allowNegative,countryCode:(d.countryCode||'971').replace(/\D/g,'')||'971',minMarginPct:Math.min(100,Math.max(0,num(d.minMarginPct))),kotPrinters:Math.min(8,Math.max(0,Math.round(num(d.kotPrinters||0)))),businessCode:newCode});
+    audit('settings.save','');save();applyTheme();toast('Settings saved'+(newCode?' · Cloud sync active':''));render();
   });
 }
 C['feat-toggle']=el=>{
@@ -684,6 +692,14 @@ A['feat-save']=()=>{
   if(!DB.settings.features)DB.settings.features={};
   $$('.feat-cb').forEach(cb=>{if(cb.dataset.feat)DB.settings.features[cb.dataset.feat]=cb.checked});
   audit('settings.features','save');save();toast('Features saved');render();
+};
+A['biz-gen-code']=()=>{
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const rand=n=>Array.from({length:n},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+  const code=rand(4)+'-'+rand(4);
+  const inp=$('#bizCodeInp');
+  if(inp){inp.value=code;inp.focus()}
+  else{DB.settings.businessCode=code;save();toast('Business Code set: '+code);render()}
 };
 A['biz-load-tpl']=d=>{
   const t=d.id;

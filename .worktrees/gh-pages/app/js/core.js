@@ -55,20 +55,23 @@ const SB_URL='https://vsaunnfackmuutclacfu.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzYXVubmZhY2ttdXV0Y2xhY2Z1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk3NTExNTIsImV4cCI6MjA0NTMyNzE1Mn0.kRJbdLfH7yRzELuFrCJSXdJb8VqBe4O4kj9Bkz1gT-A';
 let _sb=null;
 function getSB(){if(!_sb&&typeof supabase!=='undefined'){_sb=supabase.createClient(SB_URL,SB_KEY);}return _sb;}
-const SB_TABLE='harbinger_db', SB_ROW='main';
+const SB_TABLE='harbinger_db';
+/* Each business gets its own row — key is DB.settings.businessCode (set in Control Panel).
+   If not yet set, cloud sync is skipped and data stays local only. */
+function getSbRow(){return DB&&DB.settings&&DB.settings.businessCode?String(DB.settings.businessCode).trim():'';}
 
 async function cloudLoad(){
-  const sb=getSB(); if(!sb)return null;
+  const sb=getSB(); const row=getSbRow(); if(!sb||!row)return null;
   try{
-    const{data,error}=await sb.from(SB_TABLE).select('data,updated_at').eq('id',SB_ROW).single();
+    const{data,error}=await sb.from(SB_TABLE).select('data,updated_at').eq('id',row).single();
     if(error||!data)return null;
     return data.data;
   }catch(e){return null;}
 }
 async function cloudSave(payload){
-  const sb=getSB(); if(!sb)return;
+  const sb=getSB(); const row=getSbRow(); if(!sb||!row)return;
   try{
-    await sb.from(SB_TABLE).upsert({id:SB_ROW,data:payload,updated_at:new Date().toISOString()});
+    await sb.from(SB_TABLE).upsert({id:row,data:payload,updated_at:new Date().toISOString()});
   }catch(e){}
 }
 
