@@ -49,8 +49,18 @@ function vCatalog(tab){
 C.catf=el=>{UIS.q.catf=el.value;render()};
 function itemForm(it){
   it=it||{active:true,tax:true,track:true,reorder:10,price:0,cost:0,categoryId:DB.categories[0]&&DB.categories[0].id};
-  return '<div class="form2">'+field('Name','name',it.name,{req:1,af:1})+field('Arabic name (optional — filled automatically, you can edit it)','nameAr',it.nameAr)+field('SKU','sku',it.sku)+field('Barcode','barcode',it.barcode)+
-    select('Category','categoryId',DB.categories.map(c=>[c.id,c.name]),it.categoryId)+field('Reorder level','reorder',it.reorder,{type:'number',min:0})+
+  /* category row with inline "add new" */
+  const catRow='<label>Category</label>'+
+    '<div style="display:flex;gap:6px;align-items:center">'+
+    '<select name="categoryId" id="itemCatSel" style="flex:1">'+DB.categories.map(c=>'<option value="'+c.id+'"'+(c.id===it.categoryId?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>'+
+    '<button type="button" class="btn ghost sm" data-act="cat-inline-toggle" title="Add new category">+ New</button></div>'+
+    '<div id="itemCatNew" style="display:none;margin-top:4px"><div style="display:flex;gap:4px">'+
+    '<input id="itemCatInput" placeholder="New category name…" style="flex:1;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.88em">'+
+    '<button type="button" class="btn primary sm" data-act="cat-inline-add">Add</button>'+
+    '<button type="button" class="btn ghost sm" data-act="cat-inline-cancel">✕</button></div></div>';
+  return '<div style="text-align:right;margin-bottom:6px"><button type="button" class="btn ghost sm" data-act="item-bulk-import">&#x21E7; Bulk import (CSV)</button></div>'+
+    '<div class="form2">'+field('Name','name',it.name,{req:1,af:1})+field('Arabic name (optional — filled automatically, you can edit it)','nameAr',it.nameAr)+field('SKU','sku',it.sku)+field('Barcode','barcode',it.barcode)+
+    catRow+field('Reorder level','reorder',it.reorder,{type:'number',min:0})+
     field('Price','price',it.price,{type:'number',step:'0.01',min:0})+field('Cost (optional)','cost',it.cost,{type:'number',step:'0.01',min:0})+
     select('Preferred supplier','supplierId',[['','— none —']].concat(DB.suppliers.map(s=>[s.id,s.name])),it.supplierId||'')+field('Supplier lead time (days)','leadDays',it.leadDays!=null?it.leadDays:2,{type:'number',min:0})+itemExtraFields(it)+'</div>'+
     '<div class="chks">'+check('VAT applies','tax',it.tax)+check('Track stock','track',it.track)+check('Active (sellable)','active',it.active)+itemExtraChecks(it)+'</div>'+
@@ -60,10 +70,12 @@ function itemForm(it){
     '<span style="font-size:.78em;color:var(--accent,#3b82f6)">✨ Auto-fetched from Unsplash</span>'+
     '</div>'+
     '<div style="display:flex;gap:12px;align-items:flex-start">'+
-    '<div id="itemImgPreview" style="flex-shrink:0;width:80px;height:80px;border-radius:8px;border:1px dashed var(--border);background:var(--bg2,rgba(128,128,128,.08));display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;cursor:pointer" title="Click to fetch image">'+
-    (it.image?'<img src="'+esc(it.image)+'" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<span style="font-size:1.6em">📷</span><span style="font-size:.62em;color:var(--muted);text-align:center;line-height:1.2">Type name</span>')+'</div>'+
+    '<div id="itemImgPreview" style="flex-shrink:0;width:80px;height:80px;border-radius:8px;border:1px dashed var(--border);background:var(--bg2,rgba(128,128,128,.08));display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;cursor:pointer" title="Click to upload or fetch image" data-act="item-upload-image">'+
+    (it.image?'<img src="'+esc(it.image)+'" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<span style="font-size:1.6em">📷</span><span style="font-size:.62em;color:var(--muted);text-align:center;line-height:1.2">Click to upload</span>')+'</div>'+
     '<div style="flex:1">'+
-    '<button type="button" class="btn primary sm" data-act="item-fetch-image" data-diff="1" style="width:100%;margin-bottom:8px">&#x21BB; Get different image</button>'+
+    '<input type="file" id="itemImgFile" accept="image/*" style="display:none">'+
+    '<button type="button" class="btn ghost sm" data-act="item-upload-image" style="width:100%;margin-bottom:6px">&#x1F4C1; Upload from device</button>'+
+    '<button type="button" class="btn primary sm" data-act="item-fetch-image" data-diff="1" style="width:100%;margin-bottom:8px">&#x21BB; Get different image (Unsplash)</button>'+
     '<label style="font-size:.82em;color:var(--muted);display:block;margin-bottom:4px">Or paste image URL</label>'+
     '<input name="image" type="url" placeholder="https://..." value="'+esc(it.image||'')+'" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.88em;box-sizing:border-box" id="itemImgUrl">'+
     '</div></div></div>';
@@ -84,10 +96,10 @@ A['item-edit']=d=>{
   modal({title:it?'Edit item':'New item',body:itemForm(it),wide:true,onOpen:el=>{
     bindArabicAuto(el);
     const nameIn=$('[name=name]',el);
+    let _imgT,_autoImg=!it||!it.image;
+    const imgIn=$('#itemImgUrl',el);
+    if(imgIn)imgIn.addEventListener('input',()=>{_autoImg=!imgIn.value.trim();});
     if(nameIn&&(!DB.settings.features||DB.settings.features.aiImageGen!==false)){
-      let _imgT,_autoImg=!it||!it.image;
-      const imgIn=$('#itemImgUrl',el);
-      if(imgIn)imgIn.addEventListener('input',()=>{_autoImg=!imgIn.value.trim();});
       nameIn.addEventListener('input',()=>{
         if(!_autoImg)return;
         clearTimeout(_imgT);
@@ -100,8 +112,52 @@ A['item-edit']=d=>{
         },900);
       });
     }
+    /* device image upload */
+    const fileIn=$('#itemImgFile',el);
+    if(fileIn){
+      fileIn.addEventListener('change',()=>{
+        const file=fileIn.files[0]; if(!file)return;
+        if(file.size>8e6){toast('Image too large (8 MB max)','err');return}
+        const reader=new FileReader();
+        reader.onload=e=>{
+          const img=new Image();
+          img.onload=()=>{
+            const canvas=document.createElement('canvas');
+            const maxW=400,maxH=300,ratio=Math.min(maxW/img.width,maxH/img.height,1);
+            canvas.width=Math.round(img.width*ratio);canvas.height=Math.round(img.height*ratio);
+            canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+            const dataUrl=canvas.toDataURL('image/jpeg',0.82);
+            if(imgIn){imgIn.value=dataUrl;_autoImg=false;}
+            const prev=$('#itemImgPreview',el);
+            if(prev)prev.innerHTML='<img src="'+dataUrl+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+            toast('Image uploaded');
+          };
+          img.src=e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
   },actions:[{label:'Cancel'},{label:'Save',cls:'primary',fn:el=>saveItem(id,formData(el))}]});
 };
+/* upload-from-device: click the hidden file input */
+A['item-upload-image']=()=>{const f=$('#itemImgFile');if(f)f.click()};
+/* bulk import: close item modal, open CSV import */
+A['item-bulk-import']=()=>{closeModal();A['item-import']()};
+/* inline category add */
+A['cat-inline-toggle']=()=>{const d=$('#itemCatNew');if(d){const show=d.style.display==='none'||!d.style.display;d.style.display=show?'block':'none';if(show){const i=$('#itemCatInput');if(i)i.focus();}}};
+A['cat-inline-add']=()=>{
+  const inp=$('#itemCatInput');
+  const name=(inp?inp.value:'').trim(); if(!name){toast('Enter a category name','err');return}
+  if(DB.categories.some(c=>c.name.toLowerCase()===name.toLowerCase())){toast('Category already exists','err');return}
+  const cat={id:uid('c'),name:name,nameAr:''};
+  DB.categories.push(cat);save();
+  const sel=$('#itemCatSel');
+  if(sel){const opt=document.createElement('option');opt.value=cat.id;opt.textContent=name;sel.appendChild(opt);sel.value=cat.id;}
+  const d=$('#itemCatNew');if(d)d.style.display='none';
+  if(inp)inp.value='';
+  toast('Category "'+name+'" added');
+};
+A['cat-inline-cancel']=()=>{const d=$('#itemCatNew');if(d)d.style.display='none';const i=$('#itemCatInput');if(i)i.value=''};
 A['item-dup']=d=>{const it=itemById(d.id);if(!it)return;const c=Object.assign({},it,{id:uid('i'),name:it.name+' (copy)',sku:it.sku+'-C',barcode:''});DB.items.push(c);save();toast('Duplicated');render()};
 A['item-toggle']=d=>{const it=itemById(d.id);it.active=!it.active;audit('item.toggle',it.name);save();render()};
 A['item-export']=()=>downloadCSV('items',[['name','sku','barcode','category','price','cost','reorder','vat','active']].concat(DB.items.map(i=>[i.name,i.sku,i.barcode,catName(i.categoryId),i.price,i.cost,i.reorder,i.tax?1:0,i.active?1:0])));
@@ -552,7 +608,10 @@ function vSettings(){
   '<section class="card narrow mt"><h2>Feature Flags</h2><p class="muted sm" style="margin-bottom:16px">Enable or disable features for this business. Changes take effect after saving.</p>'+
   FEAT_GROUPS.map(g=>'<div style="margin-bottom:14px"><div style="font-size:.7em;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:4px 0 2px">'+esc(g.g)+'</div>'+g.flags.map(([k,l,d])=>flagRow(k,l,d)).join('')+'</div>').join('')+
   '<div class="bar mt"><button type="button" class="btn primary" data-act="feat-save">&#128190; Save features</button></div></section>'+
+  (s.businessCode?'':'<div class="card narrow" style="border:2px solid var(--warn,#f59e0b);background:rgba(245,158,11,.07);margin-bottom:12px"><div style="display:flex;align-items:flex-start;gap:12px"><span style="font-size:1.5em">⚠️</span><div><b style="color:var(--warn,#f59e0b)">Cloud sync is OFF — Business Code not set</b><p class="muted sm" style="margin:4px 0 8px">Without a Business Code, your data is saved on this device only and will not sync across devices or to the cloud. Set a code below in <b>Business → Business Code</b>.</p><button type="button" class="btn ghost sm" data-act="biz-gen-code">⚡ Auto-generate a code for me</button></div></div></div>')+
   '<form id="setForm" class="card narrow" autocomplete="off"><h2>Business</h2><div class="form2">'+field('Business name','business',s.business)+field('Tax registration no. (TRN)','trn',s.trn)+field('Address','address',s.address)+field('Phone','phone',s.phone)+
+  '<label style="grid-column:1/-1">Business Code <span style="font-size:.75em;color:var(--muted);font-weight:400">(unique ID for cloud sync — share this with all your devices)</span></label>'+
+  '<div style="display:flex;gap:6px;grid-column:1/-1"><input name="businessCode" id="bizCodeInp" type="text" value="'+esc(s.businessCode||'')+'" maxlength="32" placeholder="e.g. MYSHOP-001 (set once, keep it secret)" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.9em;font-family:monospace"><button type="button" class="btn ghost sm" data-act="biz-gen-code" title="Auto-generate">&#x2699; Generate</button></div>'+
   field('Currency code','currency',s.currency,{max:4})+field('Receipt footer','footer',s.footer)+field('Country dialling code (WhatsApp)','countryCode',s.countryCode||'971',{max:4})+
   field('Minimum ticket margin % (0 = off)','minMarginPct',s.minMarginPct!=null?s.minMarginPct:15,{type:'number',min:0,max:100})+'</div>'+
   '<h2>Country & region</h2><div class="form2">'+select('Country','country',countryList(),s.country||'XX')+'<div class="end"><button type="button" class="btn ghost" data-act="country-apply">Apply country defaults</button></div></div><p class="muted sm">'+esc((COUNTRIES[s.country]||COUNTRIES.XX).note)+' Rates and rules change — confirm with your tax authority.</p>'+
@@ -613,10 +672,15 @@ function bindSettings(){
     e.preventDefault(); const d=formData(f), s=DB.settings;
     const vat=num(d.vatPct); if(vat<0||vat>100){toast('VAT must be 0–100','err');return}
     const caps=[num(d.capA),num(d.capM),num(d.capC)]; if(caps.some(c=>c<0||c>100)){toast('Caps must be 0–100','err');return}
+    const newCode=(d.businessCode||'').trim().replace(/\s/g,'').substring(0,32);
+    const oldCode=s.businessCode||'';
+    if(newCode&&newCode!==oldCode&&oldCode){
+      if(!confirm('Changing the Business Code will switch to a different cloud database. Your current data stays on this device but will sync to the new code. Continue?'))return;
+    }
     Object.assign(s,{business:d.business.trim()||'My Business',trn:d.trn.trim(),address:d.address.trim(),phone:d.phone.trim(),currency:(d.currency.trim()||'AED').toUpperCase(),footer:d.footer.trim(),
       vatPct:vat,taxInclusive:d.taxInclusive==='1',country:d.country,taxLabel:(d.taxLabel||'').trim(),decimals:d.decimals===''?null:Math.min(3,Math.max(0,Math.round(num(d.decimals)))),receiptLang:d.receiptLang,
-      charges:[0,1,2].map(i=>({id:'ch'+i,name:(d['ch'+i+'_name']||'').trim()||('Charge '+(i+1)),pct:Math.min(100,Math.max(0,num(d['ch'+i+'_pct']))),taxable:!!d['ch'+i+'_tax'],types:d['ch'+i+'_dine']?['dine-in']:[],payable:!!d['ch'+i+'_gov']})).filter(c=>c.pct>0),pointsPerAed:Math.max(0,num(d.pointsPerAed)),pointValue:Math.max(0.01,num(d.pointValue)),caps:{admin:caps[0],manager:caps[1],cashier:caps[2]},theme:d.theme,mode:d.mode,density:d.density||'compact',allowNegative:!!d.allowNegative,countryCode:(d.countryCode||'971').replace(/\D/g,'')||'971',minMarginPct:Math.min(100,Math.max(0,num(d.minMarginPct))),kotPrinters:Math.min(8,Math.max(0,Math.round(num(d.kotPrinters||0))))});
-    audit('settings.save','');save();applyTheme();toast('Settings saved');render();
+      charges:[0,1,2].map(i=>({id:'ch'+i,name:(d['ch'+i+'_name']||'').trim()||('Charge '+(i+1)),pct:Math.min(100,Math.max(0,num(d['ch'+i+'_pct']))),taxable:!!d['ch'+i+'_tax'],types:d['ch'+i+'_dine']?['dine-in']:[],payable:!!d['ch'+i+'_gov']})).filter(c=>c.pct>0),pointsPerAed:Math.max(0,num(d.pointsPerAed)),pointValue:Math.max(0.01,num(d.pointValue)),caps:{admin:caps[0],manager:caps[1],cashier:caps[2]},theme:d.theme,mode:d.mode,density:d.density||'compact',allowNegative:!!d.allowNegative,countryCode:(d.countryCode||'971').replace(/\D/g,'')||'971',minMarginPct:Math.min(100,Math.max(0,num(d.minMarginPct))),kotPrinters:Math.min(8,Math.max(0,Math.round(num(d.kotPrinters||0)))),businessCode:newCode});
+    audit('settings.save','');save();applyTheme();toast('Settings saved'+(newCode?' · Cloud sync active':''));render();
   });
 }
 C['feat-toggle']=el=>{
@@ -628,6 +692,14 @@ A['feat-save']=()=>{
   if(!DB.settings.features)DB.settings.features={};
   $$('.feat-cb').forEach(cb=>{if(cb.dataset.feat)DB.settings.features[cb.dataset.feat]=cb.checked});
   audit('settings.features','save');save();toast('Features saved');render();
+};
+A['biz-gen-code']=()=>{
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const rand=n=>Array.from({length:n},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+  const code=rand(4)+'-'+rand(4);
+  const inp=$('#bizCodeInp');
+  if(inp){inp.value=code;inp.focus()}
+  else{DB.settings.businessCode=code;save();toast('Business Code set: '+code);render()}
 };
 A['biz-load-tpl']=d=>{
   const t=d.id;

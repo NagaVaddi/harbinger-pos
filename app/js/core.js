@@ -50,15 +50,54 @@ const itemById=id=>byId(DB.items,id);
 const catName=id=>{const c=byId(DB.categories,id);return c?c.name:'—'};
 const userName=id=>{const u=byId(DB.users,id);return u?u.name:'—'};
 
+/* ---------- Supabase cloud sync ---------- */
+const SB_URL='https://vsaunnfackmuutclacfu.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzYXVubmZhY2ttdXV0Y2xhY2Z1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk3NTExNTIsImV4cCI6MjA0NTMyNzE1Mn0.kRJbdLfH7yRzELuFrCJSXdJb8VqBe4O4kj9Bkz1gT-A';
+let _sb=null;
+function getSB(){if(!_sb&&typeof supabase!=='undefined'){_sb=supabase.createClient(SB_URL,SB_KEY);}return _sb;}
+const SB_TABLE='harbinger_db';
+/* Each business gets its own row — key is DB.settings.businessCode (set in Control Panel).
+   If not yet set, cloud sync is skipped and data stays local only. */
+function getSbRow(){return DB&&DB.settings&&DB.settings.businessCode?String(DB.settings.businessCode).trim():'';}
+
+async function cloudLoad(){
+  const sb=getSB(); const row=getSbRow(); if(!sb||!row)return null;
+  try{
+    const{data,error}=await sb.from(SB_TABLE).select('data,updated_at').eq('id',row).single();
+    if(error||!data)return null;
+    return data.data;
+  }catch(e){return null;}
+}
+async function cloudSave(payload){
+  const sb=getSB(); const row=getSbRow(); if(!sb||!row)return;
+  try{
+    await sb.from(SB_TABLE).upsert({id:row,data:payload,updated_at:new Date().toISOString()});
+  }catch(e){}
+}
+
 /* ---------- storage ---------- */
 function load(){
+  /* 1. Load from localStorage immediately so the UI renders fast */
   try{DB=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){DB=null}
   if(!DB||!DB.settings){DB=seed();save()}
   migrate();
+  /* 2. Then fetch cloud copy; if newer, replace and re-render */
+  cloudLoad().then(cloud=>{
+    if(!cloud||!cloud.settings)return;
+    const localTs=(DB._savedAt||0), cloudTs=(cloud._savedAt||0);
+    if(cloudTs>localTs){
+      DB=cloud; migrate();
+      try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}
+      if(typeof renderAll==='function')renderAll();
+      else if(typeof ui_refresh==='function')ui_refresh();
+    }
+  });
 }
 function save(){
+  DB._savedAt=Date.now();
   try{localStorage.setItem(KEY,JSON.stringify(DB))}
   catch(e){ if(typeof toast==='function')toast('Could not save: browser storage is full or blocked.','err') }
+  cloudSave(DB);
 }
 function migrate(){ if(DB.settings&&!DB.settings.sellAlways){DB.settings.allowNegative=true;DB.settings.sellAlways=1} DB.counts=DB.counts||[]; DB.drivers=DB.drivers||[]; DB.jobs=DB.jobs||[]; DB.warranty=DB.warranty||[]; DB.breakdowns=DB.breakdowns||[]; DB.providers=DB.providers||[]; DB.rxLog=DB.rxLog||[]; DB.suppliers=DB.suppliers||[]; DB.pos=DB.pos||[]; DB.held=DB.held||[]; DB.audit=DB.audit||[]; DB.vouchers=DB.vouchers||[]; DB.seq=DB.seq||{order:0,po:0}; if(DB.seq.job==null)DB.seq.job=0;
   if(DB.settings.blockExpired===undefined)DB.settings.blockExpired=true;
@@ -119,9 +158,9 @@ function seed(type){
     movements.push({id:uid('m'),ts:t,itemId:it.id,lotId:lot.id,type:'receive',qty:qty,ref:'Opening stock',user:'u1',note:''});
   });
   const users=[
-    {id:'u1',name:'Owner',username:'admin',role:'admin',pin:'1234',pass:hashPw('admin','admin123'),active:true},
-    {id:'u2',name:'Manager',username:'manager',role:'manager',pin:'2345',pass:hashPw('manager','manager123'),active:true},
-    {id:'u3',name:'Cashier',username:'cashier',role:'cashier',pin:'3456',pass:hashPw('cashier','cashier123'),active:true}
+    {id:'u1',name:'Owner',username:'admin',role:'admin',pin:'7391',pass:hashPw('admin','Hbg@Admin#26'),active:true},
+    {id:'u2',name:'Manager',username:'manager',role:'manager',pin:'4852',pass:hashPw('manager','Hbg@Mgr#26'),active:true},
+    {id:'u3',name:'Cashier',username:'cashier',role:'cashier',pin:'6017',pass:hashPw('cashier','Hbg@Cash#26'),active:true}
   ];
   const db={
     v:1,

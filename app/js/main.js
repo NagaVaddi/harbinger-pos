@@ -34,8 +34,7 @@ let _fails=0,_lockUntil=0;
 function loginHtml(){
   return '<div class="login"><div class="lcard"><div class="lbrand"><svg viewBox="0 0 144 127" aria-hidden="true"><use href="#mark"/></svg><div><strong>Harbinger POS</strong><span>An innovation partner</span></div></div>'+
     '<div style="text-align:end"><button type="button" class="btn ghost sm" data-act="lang-toggle">'+(LANG==='ar'?'English':'العربية')+'</button></div><h1>'+tr('Sign in')+'</h1><form id="loginForm" autocomplete="on"><label>'+tr('Username')+'<input name="username" autocomplete="username" required autofocus></label>'+
-    '<label>'+tr('Password')+'<input name="password" type="password" autocomplete="current-password" required></label><p class="err" id="loginErr" role="alert"></p><button class="btn primary block" type="submit">'+tr('Sign in')+'</button></form>'+
-    '<p class="demo warnbox"><b>Demo only — do not enter real customer or business data.</b> Everything is stored in this browser and the passwords below are public.</p><p class="demo">Demo accounts — <b>admin</b> / admin123 · <b>manager</b> / manager123 · <b>cashier</b> / cashier123. Change these in Team before real use. Data is stored in this browser only.</p></div></div>';
+    '<label>'+tr('Password')+'<input name="password" type="password" autocomplete="current-password" required></label><p class="err" id="loginErr" role="alert"></p><button class="btn primary block" type="submit">'+tr('Sign in')+'</button></form></div></div>';
 }
 function bindLogin(){
   const f=$('#loginForm'); if(!f)return;
@@ -47,6 +46,15 @@ function bindLogin(){
     else{_fails++;if(_fails>=5){_lockUntil=now()+30000;_fails=0}$('#loginErr').textContent=tr('Wrong username or password.')}
   });
 }
+const DEFAULT_PASSES=[['admin','Hbg@Admin#26'],['manager','Hbg@Mgr#26'],['cashier','Hbg@Cash#26']];
+function hasDefaultPw(){
+  return DB.users.some(u=>u.active&&DEFAULT_PASSES.some(([un,pw])=>u.pass===hashPw(un,pw)));
+}
+function defaultPwBanner(){
+  if(!can('settings')||!hasDefaultPw())return '';
+  return '<div class="warnbox" style="margin:12px 16px 0;border-radius:8px;font-size:.88em">'+
+    '⚠️ <b>Default passwords are still set.</b> Go to <a href="#/settings/team">Team</a> and change all passwords before giving this app to your staff.</div>';
+}
 function shell(route,content){
   const groups={}; Object.keys(ROUTES).forEach(k=>{const r=ROUTES[k];if(r.full||!can(r.perm)||(r.show&&!r.show()))return;(groups[r.group]=groups[r.group]||[]).push(k)});
   const nav=Object.keys(groups).map(g=>'<div class="ng">'+esc(tr(g))+'</div>'+groups[g].map(k=>'<a class="ni'+(k===route?' on':'')+'" href="#/'+k+'"'+(k===route?' aria-current="page"':'')+'>'+ico(k)+'<span>'+esc(tr(ROUTES[k].label))+'</span></a>').join('')).join('');
@@ -57,7 +65,7 @@ function shell(route,content){
     (can('kitchen')&&bm('kitchen')&&!(DB.settings.features&&DB.settings.features.tableManagement===false)?'<button type="button" class="btn ghost sm" data-act="go-kitchen">'+tr('Kitchen display')+'</button>':'')+
     (can('register')?'<button type="button" class="btn primary sm" data-act="go-register">'+tr('Open POS')+'</button>':'')+
     '<button type="button" class="btn ghost sm" data-act="mode-toggle" aria-label="Toggle light and dark mode">◐</button><button type="button" class="btn ghost sm" data-act="lang-toggle" aria-label="Language">'+(LANG==='ar'?'EN':'ع')+'</button><button type="button" class="btn ghost sm" data-act="logout">'+tr('Sign out')+'</button></header>'+
-    '<main class="view" id="view">'+content+'</main></div></div>';
+    '<main class="view" id="view">'+defaultPwBanner()+content+'</main></div></div>';
 }
 function render(){
   const root=$('#app'); if(!root)return;
