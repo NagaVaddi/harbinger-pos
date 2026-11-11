@@ -158,9 +158,9 @@ function seed(type){
     movements.push({id:uid('m'),ts:t,itemId:it.id,lotId:lot.id,type:'receive',qty:qty,ref:'Opening stock',user:'u1',note:''});
   });
   const users=[
-    {id:'u1',name:'Owner',username:'admin',role:'admin',pin:'1234',pass:hashPw('admin','admin123'),active:true},
-    {id:'u2',name:'Manager',username:'manager',role:'manager',pin:'2345',pass:hashPw('manager','manager123'),active:true},
-    {id:'u3',name:'Cashier',username:'cashier',role:'cashier',pin:'3456',pass:hashPw('cashier','cashier123'),active:true}
+    {id:'u1',name:'Owner',username:'admin',role:'admin',pin:'7391',pass:hashPw('admin','Hbg@Admin#26'),active:true},
+    {id:'u2',name:'Manager',username:'manager',role:'manager',pin:'4852',pass:hashPw('manager','Hbg@Mgr#26'),active:true},
+    {id:'u3',name:'Cashier',username:'cashier',role:'cashier',pin:'6017',pass:hashPw('cashier','Hbg@Cash#26'),active:true}
   ];
   const db={
     v:1,
